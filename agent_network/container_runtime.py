@@ -179,6 +179,8 @@ class ContainerRuntime:
             env["AGENT_ACTION_SPACE"] = json.dumps(extra_meta.get("action_space", []), ensure_ascii=False)
             env["AGENT_INITIAL_ASSETS"] = json.dumps(extra_meta.get("initial_assets", {}), ensure_ascii=False)
             env["AGENT_SYSTEM_PROMPT"] = extra_meta.get("background_rules", "")
+            env["AGENT_INTERACTION_PARADIGM"] = extra_meta.get("interaction_paradigm", "")
+            env["AGENT_PARADIGM_HINT"] = extra_meta.get("paradigm_hint", "")
         if llm_config:
             if llm_config.get("api_key"):
                 env["LLM_API_KEY"] = llm_config["api_key"]

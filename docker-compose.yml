@@ -4,7 +4,7 @@
 # 启动方式:
 #   docker-compose up -d                  # 后台启动全部服务
 #   docker-compose up -d message-bus      # 单独启动消息总线
-#   docker-compose logs -f agent-server   # 查看 agent 日志
+#   docker-compose logs -f agent-claude   # 查看 Claude Agent 日志
 #
 # 注意: 在 Linux 上使用 service name 互访 (如 message-bus:9000)
 #       不需要 host.docker.internal (仅 Docker Desktop 支持)
@@ -53,7 +53,7 @@ services:
     environment:
       - AGENT_ID=agent-001
       - AGENT_ROLE=generic
-      - AGENT_NAME=Agent
+      - AGENT_NAME=Generic Agent
       - MESSAGE_BUS_URL=http://message-bus:9000
       - SERVER_URL=http://server:8000
     depends_on:
@@ -64,42 +64,46 @@ services:
       - agent-network
 
   # ── Agent 容器 (Claude Code 版) ──
-  # agent-claude:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.claude
-  #   container_name: an-agent-claude
-  #   environment:
-  #     - AGENT_ID=agent-claude-001
-  #     - AGENT_ROLE=claude
-  #     - AGENT_NAME=Claude Agent
-  #     - MESSAGE_BUS_URL=http://message-bus:9000
-  #     - SERVER_URL=http://server:8000
-  #   depends_on:
-  #     - message-bus
-  #     - server
-  #   restart: unless-stopped
-  #   networks:
-  #     - agent-network
+  agent-claude:
+    build:
+      context: .
+      dockerfile: Dockerfile.claude
+    container_name: an-agent-claude
+    environment:
+      - AGENT_ID=agent-claude-001
+      - AGENT_ROLE=claude
+      - AGENT_NAME=Claude Code Agent
+      - PORT=8001
+      - MESSAGE_BUS_URL=http://message-bus:9000
+      - SERVER_URL=http://server:8000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - message-bus
+      - server
+    restart: unless-stopped
+    networks:
+      - agent-network
 
   # ── Agent 容器 (OpenClaw 版) ──
-  # agent-openclaw:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.openclaw
-  #   container_name: an-agent-openclaw
-  #   environment:
-  #     - AGENT_ID=agent-openclaw-001
-  #     - AGENT_ROLE=openclaw
-  #     - AGENT_NAME=OpenClaw Agent
-  #     - MESSAGE_BUS_URL=http://message-bus:9000
-  #     - SERVER_URL=http://server:8000
-  #   depends_on:
-  #     - message-bus
-  #     - server
-  #   restart: unless-stopped
-  #   networks:
-  #     - agent-network
+  agent-openclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
+    container_name: an-agent-openclaw
+    environment:
+      - AGENT_ID=agent-openclaw-001
+      - AGENT_ROLE=openclaw
+      - AGENT_NAME=OpenClaw Agent
+      - PORT=8002
+      - MESSAGE_BUS_URL=http://message-bus:9000
+      - SERVER_URL=http://server:8000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - message-bus
+      - server
+    restart: unless-stopped
+    networks:
+      - agent-network
 
 networks:
   agent-network:

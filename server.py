@@ -52,11 +52,14 @@ from agent_network.agent_hub import AgentHub
 from agent_network.llm_parser import parse_script, get_api_config, SceneDefinition, AgentDef
 from agent_network.container_runtime import get_runtime, ContainerRuntime
 from agent_network.container_controller import ContainerController
+from agent_network.agent_hub import AgentHub, RoutingStrategy, ScalingPolicy
+from agent_network.workflow import WorkflowEngine, WorkflowDAG, WorkflowStep
+from agent_network.agent_scheduler import TaskPriority, TaskStatus
+from agent_network.terrain import TerrainMap
 from agent_network.logger import SimulationLogger, LogLevel
 from agent_network.event_bus import PacketRecorder
 from agent_network.tool import ToolRegistry
 from agent_network.skill import SkillRegistry
-from agent_network.workflow import WorkflowEngine
 
 # ── 统一 Agent 日志缓冲区 ──
 _agent_logs: List[Dict[str, Any]] = []  # 内存/容器模式共用日志
@@ -550,22 +553,119 @@ def _launch_containers(config: Dict[str, str]) -> Dict[str, Any]:
         except Exception:
             ca.status = "error"
 
-    # 运行仿真轮次
-    agent_count = len(created_cas)
-    rounds = max(2, min(5, agent_count // 2))
+    # 获取事件触发器
+    event_triggers = getattr(scene_def, 'event_triggers', []) or []
+
+    # ── 构建 agent_id → url 映射 ──
+    agent_map = {ca.agent_id: ca for ca, _ in created_cas}
+
+    # ── DAG 调度: 根据 workflow 的 depends_on 执行步骤 ──
+    workflow_steps = scene_def.workflow if scene_def.workflow else []
+    # 解析为新格式（兼容旧格式）
+    if workflow_steps and isinstance(workflow_steps[0], dict):
+        try:
+            resolved = scene_def.to_workflow_steps()
+            if resolved:
+                workflow_steps = [s.to_dict() if hasattr(s, 'to_dict') else s for s in resolved]
+        except Exception:
+            pass  # 保持原格式
+
+    MAX_ROUNDS = 12
+    completed_steps: set = set()
     results_log = []
 
-    for round_num in range(rounds):
-        context = {
-            "round": round_num + 1,
-            "total_rounds": rounds,
-            "scene": scene_def.scene_name,
-            "agents": [{"id": ca.agent_id, "role": ca.role, "name": ca.name}
-                       for ca, _ in created_cas],
-            "tasks": {ca.agent_id: tasks for ca, tasks in created_cas},
-        }
-        round_result = runtime.run_round(context)
-        results_log.append(round_result)
+    for round_num in range(MAX_ROUNDS):
+        current_turn = round_num + 1
+
+        # ── 检查并触发回合事件 ──
+        for trigger in event_triggers:
+            if trigger.get("turn") == current_turn:
+                event_payload = {
+                    "event_name": trigger.get("event_name", "未知事件"),
+                    "impact": trigger.get("impact", ""),
+                    "turn": current_turn,
+                }
+                print(f"[Event] Round {current_turn}: {event_payload['event_name']} — {event_payload['impact']}")
+                for ca, _ in created_cas:
+                    try:
+                        _req.post(f"{ca.url}/event", json=event_payload, timeout=5)
+                    except Exception as e:
+                        print(f"[Event] Failed to send to {ca.agent_id}: {e}")
+
+        # ── DAG: 找出所有依赖已满足的步骤 ──
+        if workflow_steps:
+            ready_steps = []
+            for step in workflow_steps:
+                sid = step.get("step_id", "")
+                if sid in completed_steps:
+                    continue
+                deps = step.get("depends_on", [])
+                if all(d in completed_steps for d in deps):
+                    ready_steps.append(step)
+
+            if ready_steps:
+                print(f"[DAG] Round {current_turn}: ready steps = {[s['step_id'] for s in ready_steps]}")
+                for step in ready_steps:
+                    step_type = step.get("type", "task")
+                    agent_id = step.get("agent_id", "").lower()
+                    action = step.get("action", "")
+
+                    if step_type == "wait":
+                        wait_sec = (step.get("params", {}) or {}).get("seconds", 2)
+                        print(f"[DAG] Waiting {wait_sec}s for {step['step_id']}")
+                        time.sleep(wait_sec)
+                    elif step_type == "parallel":
+                        sub_steps = step.get("sub_steps", [])
+                        print(f"[DAG] Parallel: {len(sub_steps)} sub-steps")
+                        for ss in sub_steps:
+                            ss_agent = ss.get("agent_id", "").lower()
+                            if ss_agent in agent_map:
+                                try:
+                                    _req.post(f"{agent_map[ss_agent].url}/decide",
+                                              json={"context": {"action": ss.get("action", ""), "round": current_turn}},
+                                              timeout=10)
+                                except Exception as e:
+                                    print(f"[DAG] Parallel step error: {e}")
+                    else:
+                        # task 类型
+                        if agent_id in agent_map:
+                            try:
+                                resp = _req.post(f"{agent_map[agent_id].url}/decide",
+                                                 json={"context": {"action": action, "step_id": sid, "round": current_turn}},
+                                                 timeout=10)
+                                results_log.append({"step": sid, "agent": agent_id,
+                                                    "action": action, "status": resp.status_code})
+                            except Exception as e:
+                                print(f"[DAG] Step {sid} error: {e}")
+                        else:
+                            print(f"[DAG] Agent {agent_id} not found for step {sid}")
+
+                    completed_steps.add(sid)
+                    time.sleep(0.2)
+            else:
+                # 没有可执行步骤，但还有未完成的 → 跳过本轮
+                pending = [s["step_id"] for s in workflow_steps if s["step_id"] not in completed_steps]
+                if pending:
+                    print(f"[DAG] Round {current_turn}: no ready steps, pending={pending}")
+                else:
+                    print(f"[DAG] All {len(completed_steps)} steps completed at round {current_turn}")
+                    break
+        else:
+            # 无 workflow 定义 → 回退到固定轮次广播模式
+            context = {
+                "round": current_turn,
+                "total_rounds": MAX_ROUNDS,
+                "scene": scene_def.scene_name,
+                "agents": [{"id": ca.agent_id, "role": ca.role, "name": ca.name}
+                           for ca, _ in created_cas],
+                "tasks": {ca.agent_id: tasks for ca, tasks in created_cas},
+            }
+            round_result = runtime.run_round(context)
+            results_log.append(round_result)
+
+            if current_turn >= max(2, min(5, agent_count // 2)):
+                break
+
         time.sleep(0.3)
 
     _current_relationships = scene_def.workflow
@@ -573,11 +673,11 @@ def _launch_containers(config: Dict[str, str]) -> Dict[str, Any]:
 
     return {
         "simulation_name": scene_def.scene_name,
-        "duration_seconds": round(rounds * 1.5, 2),
+        "duration_seconds": round(len(results_log) * 1.5 if results_log else 1.5, 2),
         "agents": registry_agents,
         "agent_stats": AgentRegistry.get_stats(),
         "packet_stats": PacketRecorder.get_stats(),
-        "rounds": rounds,
+        "rounds": round_num + 1,
         "results_log": results_log,
         "relationships": scene_def.workflow,
         "container_mode": "docker",
@@ -658,21 +758,32 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
         if backend == "claudecode":
             backend = "claude-code"
 
+        # 交互范式的 prompt 修饰
+        paradigm = role.get("primary_interaction_paradigm", "")
+        paradigm_hints = {
+            "EXTERNAL_NEGOTIATION": "你处于对外谈判模式，需要在合作与竞争之间寻找平衡。",
+            "COMPETITIVE_AGGRESSIVE": "你采取进攻性市场竞争策略，优先扩大份额而非短期利润。",
+            "INTERNAL_COLLABORATION": "你注重内部协作，通过团队配合提升整体效率。",
+            "REGULATORY_COMPLIANCE": "你需要确保所有行动符合监管要求，违规将带来严重后果。",
+        }
+
         agent = AgentDef(
             agent_id=role_id.lower(),
             role="generic",
             name=role.get("name", role_id),
             skills=skills[:4],
-            tags=[role.get("primary_interaction_paradigm", "")],
+            tags=[paradigm] if paradigm else [],
             tasks=[role.get("core_goal", "")],
             extra_meta={
                 "identity": role.get("identity", ""),
                 "core_goal": role.get("core_goal", ""),
-                "hidden_secret": "",
-                "initial_assets": {},
+                "hidden_secret": role.get("hidden_secret", ""),      # 从 JSON 读取，不再硬编码空值
+                "initial_assets": role.get("initial_assets", {}),    # 从 JSON 读取，不再硬编码空值
                 "action_space": skills,
                 "background_rules": bg,
                 "backend": backend,
+                "interaction_paradigm": paradigm,
+                "paradigm_hint": paradigm_hints.get(paradigm, ""),
                 "pip_packages": instance.get("pip_packages", []),
                 "runtime_engine": instance.get("runtime_engine", ""),
             },
@@ -683,12 +794,16 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
     relationships = []
     for subnet in topology.get("sub_networks", []):
         for edge in subnet.get("edges", []):
+            # 权重: 优先读 edge.weight，否则根据 paradigm 推断
+            weight = edge.get("weight")
+            if weight is None:
+                weight = 70 if edge.get("paradigm") == "COLLABORATION" else -50
             relationships.append({
                 "from": edge["source"],
                 "to": edge["target"],
                 "relation_type": edge.get("paradigm", ""),
-                "value": 50 if edge.get("paradigm") == "COLLABORATION" else -30,
-                "can_direct_chat": True,
+                "value": weight,
+                "can_direct_chat": edge.get("direct_chat", True),
                 "channel_id": edge.get("channel_id", ""),
             })
 

@@ -53,6 +53,8 @@ AGENT_HIDDEN_SECRET = os.environ.get("AGENT_HIDDEN_SECRET", "")
 AGENT_ACTION_SPACE = json.loads(os.environ.get("AGENT_ACTION_SPACE", "[]"))
 AGENT_INITIAL_ASSETS = json.loads(os.environ.get("AGENT_INITIAL_ASSETS", "{}"))
 AGENT_SYSTEM_PROMPT = os.environ.get("AGENT_SYSTEM_PROMPT", "")  # from scene background_rules
+AGENT_INTERACTION_PARADIGM = os.environ.get("AGENT_INTERACTION_PARADIGM", "")
+AGENT_PARADIGM_HINT = os.environ.get("AGENT_PARADIGM_HINT", "")
 
 LOG_COLLECTOR_URL = os.environ.get("LOG_COLLECTOR_URL", "")
 PACKET_MONITOR_URL = os.environ.get("PACKET_MONITOR_URL", "")
@@ -82,6 +84,8 @@ agent.extra_meta = {
     "hidden_secret": AGENT_HIDDEN_SECRET,
     "action_space": AGENT_ACTION_SPACE,
     "initial_assets": AGENT_INITIAL_ASSETS,
+    "interaction_paradigm": AGENT_INTERACTION_PARADIGM,
+    "paradigm_hint": AGENT_PARADIGM_HINT,
 }
 
 # 安装 Brain
@@ -100,9 +104,16 @@ if AGENT_ACTION_SPACE:
     _goals.append(f"可用行动: {', '.join(AGENT_ACTION_SPACE)}")
 if AGENT_INITIAL_ASSETS:
     _goals.append(f"初始资产: {json.dumps(AGENT_INITIAL_ASSETS, ensure_ascii=False)}")
+if AGENT_PARADIGM_HINT:
+    _goals.append(f"行为模式: {AGENT_PARADIGM_HINT}")
+
+# 构建完整系统提示词（注入范式提示）
+_system_prompt = AGENT_SYSTEM_PROMPT
+if AGENT_PARADIGM_HINT:
+    _system_prompt = f"{_system_prompt}\n\n【行为模式指导】\n{AGENT_PARADIGM_HINT}"
 
 agent.equip_brain(goals=_goals if _goals else None, config=brain_config,
-                   system_prompt=AGENT_SYSTEM_PROMPT)
+                   system_prompt=_system_prompt)
 
 # ═══════════════════════════════════════════════
 # HTTP API
@@ -166,6 +177,41 @@ async def receive_message(msg: MessageIn):
     if len(agent.inbox) > 50:
         agent.inbox.pop(0)
     return {"received": True, "inbox_size": len(agent.inbox)}
+
+
+# ── 全局事件队列 ──
+_event_queue: List[Dict[str, Any]] = []
+
+
+@app.post("/event")
+async def receive_event(event: Dict[str, Any]):
+    """接收来自调度中心的事件通知（如合规检查、媒体曝光等）"""
+    event_name = event.get("event_name", "未知事件")
+    impact = event.get("impact", "")
+    turn = event.get("turn", 0)
+
+    # 写入 Agent 收件箱（作为系统消息）
+    agent.inbox.append({
+        "from": "系统",
+        "content": f"⚠️ 事件 [{event_name}]: {impact}",
+        "type": "event",
+    })
+
+    # 同时写入事件队列（供决策时参考）
+    _event_queue.append({
+        "event_name": event_name,
+        "impact": impact,
+        "turn": turn,
+    })
+
+    print(f"[Agent {AGENT_ID}] 收到事件: {event_name} — {impact}")
+    return {"received": True, "event": event_name}
+
+
+@app.get("/events")
+async def list_events():
+    """获取已触发的事件列表"""
+    return {"agent_id": AGENT_ID, "events": _event_queue}
 
 
 @app.post("/decide")
