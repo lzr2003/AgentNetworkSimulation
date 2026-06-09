@@ -186,7 +186,12 @@ class LogQueryRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def index():
     """仿真平台控制台首页"""
-    return HTMLResponse(content=_load_dashboard())
+    from fastapi.responses import Response
+    resp = HTMLResponse(content=_load_dashboard())
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 # ═══════════════════════════════════════════════

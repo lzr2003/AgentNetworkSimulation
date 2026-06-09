@@ -125,7 +125,7 @@ async function loadSceneList() {
     const data = await r.json();
     const sel = document.getElementById('scene-selector');
     if (!sel) return;
-    sel.innerHTML = '';
+    sel.innerHTML = '<option value="">选择场景脚本</option>';
     data.scenes.forEach(s => {
       const opt = document.createElement('option');
       const val = typeof s === 'string' ? s : s.name;
