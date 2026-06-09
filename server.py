@@ -1111,19 +1111,32 @@ async def download_log_file(filename: str):
 # ═══════════════════════════════════════════════
 
 @app.get("/api/packets")
-async def query_packets(agent_id: Optional[str] = Query(None)):
-    """查询收发包记录"""
-    records = PacketRecorder.get_records(agent_id=agent_id)
+async def query_packets(
+    agent_id: Optional[str] = Query(None),
+    direction: Optional[str] = Query(None),
+    limit: int = Query(default=100, le=500),
+):
+    """查询 IP 包级别通信报文 — 含源/目标IP、延迟、内容"""
+    records = PacketRecorder.get_records(agent_id=agent_id, direction=direction, limit=limit)
     return {
-        "total": len(records),
-        "records": [r.to_dict() for r in records],
+        "total": PacketRecorder.get_stats()["total_packets"],
+        "packets": records,
+        "stats": PacketRecorder.get_stats(),
     }
 
 
 @app.get("/api/packets/stats")
 async def packet_stats():
-    """收发包统计"""
+    """收发包统计 — 总量/字节/平均延迟/按方向分布"""
     return PacketRecorder.get_stats()
+
+
+@app.get("/api/packets/stream")
+async def packet_stream(agent_id: Optional[str] = Query(None), limit: int = 100):
+    """Wireshark 风格报文文本流"""
+    lines = PacketRecorder.get_wireshark_view(agent_id=agent_id, limit=limit)
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("\n".join(lines), media_type="text/plain")
 
 
 # ═══════════════════════════════════════════════
@@ -1892,7 +1905,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "packets",
                         "data": {
-                            "records": [r.to_dict() for r in PacketRecorder.get_records()],
+                            "packets": PacketRecorder.get_records(limit=50),
                             "stats": PacketRecorder.get_stats(),
                         },
                     })

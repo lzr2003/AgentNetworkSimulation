@@ -27,7 +27,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
@@ -36,6 +36,7 @@ import requests
 from agent_network.agent import Agent
 from agent_network.comm import RemoteBus
 from agent_network.logger import get_logger
+from agent_network.event_bus import PacketRecorder
 
 
 # ═══════════════════════════════════════════════
@@ -174,8 +175,9 @@ async def status():
 
 
 @app.post("/message")
-async def receive_message(msg: MessageIn):
+async def receive_message(msg: MessageIn, request: Request):
     """接收来自其他 Agent 的消息 → 写入 Agent 收件箱"""
+    client_ip = request.client.host if request.client else "unknown"
     agent.inbox.append({
         "from": msg.from_name or msg.from_id,
         "content": msg.content,
@@ -183,6 +185,11 @@ async def receive_message(msg: MessageIn):
     })
     if len(agent.inbox) > 50:
         agent.inbox.pop(0)
+    # 记录入站报文
+    PacketRecorder.record_inbound(
+        agent_id=AGENT_ID, src_ip=client_ip, method="POST", path="/message",
+        content=msg.content, from_id=msg.from_id,
+    )
     return {"received": True, "inbox_size": len(agent.inbox)}
 
 
@@ -281,7 +288,16 @@ async def act():
                 ok = comm.send(AGENT_ID, AGENT_NAME, action_target, action_content)
             else:
                 ok = comm.broadcast(AGENT_ID, AGENT_NAME, action_content)
+            latency = (time.time() - relay_start) * 1000
             result["relayed"] = ok
+            # 记录出站报文
+            destination = action_target if action_type == "send_message" else "broadcast"
+            PacketRecorder.record_outbound(
+                agent_id=AGENT_ID, dst_ip=f"bus", dst_port=9000,
+                method="POST", path="/relay", status=200 if ok else 0,
+                latency_ms=latency, content=action_content,
+                agent_to=destination,
+            )
 
             # 转发到 Packet Monitor
             if PACKET_MONITOR_URL:
