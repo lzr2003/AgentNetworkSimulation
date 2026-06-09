@@ -1,0 +1,140 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "sub_internal_A",
+      "topology_type": "STAR",
+      "description": "电信A公司内部协作网络，CEO为中心节点",
+      "nodes": [
+        "TEL_A_CEO",
+        "TEL_A_CTO",
+        "TEL_A_CMO"
+      ],
+      "edges": [
+        {
+          "source": "TEL_A_CEO",
+          "target": "TEL_A_CTO",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_101"
+        },
+        {
+          "source": "TEL_A_CEO",
+          "target": "TEL_A_CMO",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_102"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_internal_B",
+      "topology_type": "STAR",
+      "description": "电信B公司内部协作网络，CEO为中心节点",
+      "nodes": [
+        "TEL_B_CEO",
+        "TEL_B_CTO"
+      ],
+      "edges": [
+        {
+          "source": "TEL_B_CEO",
+          "target": "TEL_B_CTO",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_201"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_competition",
+      "topology_type": "MESH",
+      "description": "外部市场竞争与谈判网络，包括运营商、供应商、监管、消费者和新进入者",
+      "nodes": [
+        "TEL_A_CEO",
+        "TEL_B_CEO",
+        "REGULATOR",
+        "SUPPLIER_1",
+        "SUPPLIER_2",
+        "CONSUMER_GROUP",
+        "NEW_ENTRANT"
+      ],
+      "edges": [
+        {
+          "source": "TEL_A_CEO",
+          "target": "TEL_B_CEO",
+          "paradigm": "GAME",
+          "channel_id": "vlan_301"
+        },
+        {
+          "source": "TEL_A_CEO",
+          "target": "REGULATOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_302"
+        },
+        {
+          "source": "TEL_B_CEO",
+          "target": "REGULATOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_303"
+        },
+        {
+          "source": "TEL_A_CEO",
+          "target": "SUPPLIER_1",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_304"
+        },
+        {
+          "source": "TEL_A_CEO",
+          "target": "SUPPLIER_2",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_305"
+        },
+        {
+          "source": "TEL_B_CEO",
+          "target": "SUPPLIER_1",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_306"
+        },
+        {
+          "source": "TEL_B_CEO",
+          "target": "SUPPLIER_2",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_307"
+        },
+        {
+          "source": "CONSUMER_GROUP",
+          "target": "TEL_A_CEO",
+          "paradigm": "GAME",
+          "channel_id": "vlan_308"
+        },
+        {
+          "source": "CONSUMER_GROUP",
+          "target": "TEL_B_CEO",
+          "paradigm": "GAME",
+          "channel_id": "vlan_309"
+        },
+        {
+          "source": "NEW_ENTRANT",
+          "target": "TEL_A_CEO",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_310"
+        },
+        {
+          "source": "NEW_ENTRANT",
+          "target": "TEL_B_CEO",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_311"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "CONSUMER_GROUP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_312"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "NEW_ENTRANT",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_313"
+        }
+      ]
+    }
+  ]
+}

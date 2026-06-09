@@ -1,0 +1,78 @@
+{
+  "scenario_metadata": {
+    "title": "电信运营商市场竞争博弈与内部协作仿真",
+    "global_rules": "仿真周期为12个月。每个角色每月执行一次决策，资源状态全局共享。市场份额、利润、客户满意度等指标动态更新。角色之间通过指定通道进行消息传递，消息延迟和丢失率由通道质量决定。所有决策需在截止日期前提交，逾期视为放弃。"
+  },
+  "roles": {
+    "TEL_A_CEO": {
+      "name": "电信A公司CEO",
+      "model_backbone": "claudecode",
+      "identity": "电信运营商A的CEO，负责公司整体战略和重大决策，追求市场份额和利润最大化。",
+      "core_goal": "12个月内市场份额达到35%，净利润增长20%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "TEL_A_CTO": {
+      "name": "电信A公司CTO",
+      "model_backbone": "openclaw",
+      "identity": "电信运营商A的CTO，负责技术架构和网络部署，支持业务部门需求。",
+      "core_goal": "12个月内完成5G网络覆盖率达80%，成本控制在预算内。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "TEL_A_CMO": {
+      "name": "电信A公司CMO",
+      "model_backbone": "claudecode",
+      "identity": "电信运营商A的CMO，负责市场营销和客户关系，提升品牌影响力。",
+      "core_goal": "12个月内客户满意度提升至90%，新增用户100万。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "TEL_B_CEO": {
+      "name": "电信B公司CEO",
+      "model_backbone": "claudecode",
+      "identity": "电信运营商B的CEO，与A公司竞争，同时寻求合作机会。",
+      "core_goal": "12个月内市场份额达到30%，净利润增长15%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "TEL_B_CTO": {
+      "name": "电信B公司CTO",
+      "model_backbone": "openclaw",
+      "identity": "电信运营商B的CTO，负责技术规划和创新。",
+      "core_goal": "12个月内推出2项创新服务，网络成本降低10%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "REGULATOR": {
+      "name": "通信监管局官员",
+      "model_backbone": "claudecode",
+      "identity": "政府通信监管局官员，负责市场秩序和频谱分配，维护公平竞争。",
+      "core_goal": "12个月内确保市场公平竞争，消费者投诉率下降20%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SUPPLIER_1": {
+      "name": "基站设备供应商A",
+      "model_backbone": "openclaw",
+      "identity": "主要基站设备供应商，向运营商提供硬件设备。",
+      "core_goal": "12个月内销售额增长25%，利润率保持在15%以上。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SUPPLIER_2": {
+      "name": "光缆设备供应商B",
+      "model_backbone": "openclaw",
+      "identity": "光缆和传输设备供应商，为运营商提供基础设施。",
+      "core_goal": "12个月内获得至少两个长期合同，营收增长30%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "CONSUMER_GROUP": {
+      "name": "消费者权益组织代表",
+      "model_backbone": "claudecode",
+      "identity": "代表广大消费者利益，监督运营商服务质量。",
+      "core_goal": "12个月内推动运营商改善服务，客户满意度提升10个百分点。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "NEW_ENTRANT": {
+      "name": "新兴虚拟运营商CEO",
+      "model_backbone": "claudecode",
+      "identity": "新进入市场的虚拟运营商，利用现有网络资源提供差异化服务。",
+      "core_goal": "12个月内获得5%市场份额，实现盈亏平衡。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    }
+  }
+}

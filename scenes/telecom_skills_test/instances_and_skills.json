@@ -1,0 +1,200 @@
+{
+  "container_instances": {
+    "TEL_A_CEO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "requests==2.28.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "make_strategic_decision",
+          "endpoint": "http://tel_a_ceo:5000/strategic",
+          "description": "制定公司战略决策，如定价、投资等"
+        },
+        {
+          "skill_name": "approve_budget",
+          "endpoint": "http://tel_a_ceo:5000/budget",
+          "description": "审批部门预算申请"
+        }
+      ]
+    },
+    "TEL_A_CTO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "pandas==1.5.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "plan_network_deployment",
+          "endpoint": "http://tel_a_cto:5000/network",
+          "description": "规划网络部署方案"
+        },
+        {
+          "skill_name": "calculate_cost",
+          "endpoint": "http://tel_a_cto:5000/cost",
+          "description": "计算网络部署成本"
+        }
+      ]
+    },
+    "TEL_A_CMO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "scipy==1.7.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "run_marketing_campaign",
+          "endpoint": "http://tel_a_cmo:5000/marketing",
+          "description": "执行市场营销活动"
+        },
+        {
+          "skill_name": "analyze_customer_satisfaction",
+          "endpoint": "http://tel_a_cmo:5000/satisfaction",
+          "description": "分析客户满意度数据"
+        }
+      ]
+    },
+    "TEL_B_CEO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "requests==2.28.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "negotiate_partnership",
+          "endpoint": "http://tel_b_ceo:5000/negotiate",
+          "description": "与合作伙伴进行谈判"
+        },
+        {
+          "skill_name": "set_competitive_price",
+          "endpoint": "http://tel_b_ceo:5000/price",
+          "description": "制定竞争性定价策略"
+        }
+      ]
+    },
+    "TEL_B_CTO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "pandas==1.5.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "develop_new_service",
+          "endpoint": "http://tel_b_cto:5000/service",
+          "description": "开发新服务产品"
+        },
+        {
+          "skill_name": "optimize_network_cost",
+          "endpoint": "http://tel_b_cto:5000/optimize",
+          "description": "优化网络成本"
+        }
+      ]
+    },
+    "REGULATOR": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "allocate_spectrum",
+          "endpoint": "http://regulator:5000/spectrum",
+          "description": "分配频谱资源"
+        },
+        {
+          "skill_name": "enforce_compliance",
+          "endpoint": "http://regulator:5000/compliance",
+          "description": "执行合规检查"
+        }
+      ]
+    },
+    "SUPPLIER_1": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "bid_for_contract",
+          "endpoint": "http://supplier1:5000/bid",
+          "description": "投标获取合同"
+        },
+        {
+          "skill_name": "deliver_equipment",
+          "endpoint": "http://supplier1:5000/deliver",
+          "description": "交付设备"
+        }
+      ]
+    },
+    "SUPPLIER_2": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "bid_for_contract",
+          "endpoint": "http://supplier2:5000/bid",
+          "description": "投标获取合同"
+        },
+        {
+          "skill_name": "deliver_materials",
+          "endpoint": "http://supplier2:5000/deliver",
+          "description": "交付材料"
+        }
+      ]
+    },
+    "CONSUMER_GROUP": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "survey_customers",
+          "endpoint": "http://consumer:5000/survey",
+          "description": "进行客户满意度调查"
+        },
+        {
+          "skill_name": "file_complaint",
+          "endpoint": "http://consumer:5000/complaint",
+          "description": "提交投诉"
+        }
+      ]
+    },
+    "NEW_ENTRANT": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "requests==2.28.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "lease_network",
+          "endpoint": "http://new_entrant:5000/lease",
+          "description": "租用网络资源"
+        },
+        {
+          "skill_name": "launch_service",
+          "endpoint": "http://new_entrant:5000/launch",
+          "description": "推出新服务"
+        }
+      ]
+    }
+  }
+}

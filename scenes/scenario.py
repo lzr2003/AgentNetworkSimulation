@@ -6,13 +6,12 @@
 
 import os
 import json
-import anthropic 
 
 # =====================================================================
 # 1. 升级版系统核心提示词 (注入给大模型的 SYSTEM 角色)
 # =====================================================================
 SYSTEM_PROMPT = """
-你是一个顶级的“多Agent分布式网络仿真”剧本编译器。你的任务是根据用户的输入想法，自动生成一个高度复杂的仿真剧本。该剧本包含10个左右的角色节点。
+你是一个顶级的"多Agent分布式网络仿真"剧本编译器。你的任务是根据用户的输入想法，自动生成一个高度复杂的仿真剧本。该剧本包含10个左右的角色节点。
 
 【核心铁律】
 1. 绝对禁止自然语言废话：所有输出必须符合即插即用的槽位设计，严格遵循后续给出的 JSON 结构。严禁在 JSON 代码块之外输出任何解释性文字。
@@ -28,8 +27,12 @@ SYSTEM_PROMPT = """
    你必须在剧本中声明总体拓扑类型（global_topology_type），并通过子网（sub_networks）的形式，把角色分入不同的拓扑层。
 4. 异构模型底层：根据模型的特长和角色特征，每个角色必须明确它运行时依赖的底层基座模型（model_backbone），必须在 ['openclaw', 'claudecode'] 中二选一。例如内部协助侧、技术蓝图侧节点可倾向于 openclaw，涉及深度工程、对赌合同决策侧可倾向于 claudecode。
 5. 工具集与环境依赖落地：每个角色容器必须挂载具体的工具集（skillset）。这些工具需要有具体的网络端点（endpoint）和实现描述，同时在配置中声明该容器需要预装的 Python 依赖包（pip_packages）。
-    你是一个顶级的“复杂社会技术系统与网络博弈”剧本架构师。你的任务是根据用户的输入想法，自动生成一个包含10个左右角色槽位、聚焦于“网络化互动、谈判博弈、利益冲突与资源流动”的结构化仿真剧本。
-6. 绝对禁止自然语言废话：所有输出必须符合即插即用的槽位设计，严格遵循后续给出的 JSON 结构。严禁在 JSON 代码块之外输出任何解释性文字、前缀（如“好的，这是为您生成的剧本”）或后缀。
+6. 技能可执行代码落地（重点）：你必须为 instances_and_skills 中出现的每一个 skill_name 生成对应的 Python 函数实现，放入 skills_code 字段。代码要求：
+   - 是一个完整可独立运行的 Python 模块字符串（含 SkillRegistry 注册中心类 + 所有技能函数）
+   - 每个技能函数接受 **kwargs 参数，返回 dict 结果（至少包含 status/result/data 字段）
+   - 函数内部必须有意义的仿真逻辑：资源状态追踪（用模块级 dict 存储）、随机事件模拟（用 random 模块）、数值计算、边界校验
+   - 函数命名用英文 snake_case，docstring 用中文写清楚用途
+   - 字符串内缩进使用 4 空格，确保从 JSON 解析出来后是合法 Python 代码
 7. 动机可量化收敛：角色的核心目标必须具体且带有时限或量化指标（例如：预算结余>50%），严禁日常社交闲聊。
 """
 
@@ -159,9 +162,14 @@ RESPONSE_SCHEMA = {
                     },
                     "required": ["global_topology_type", "sub_networks"],
                     "additionalProperties": False
+                },
+                # 模块四：技能可执行代码 (对应 skills.py)
+                "skills_code": {
+                    "type": "string",
+                    "description": "完整的 Python 模块代码字符串，包含 SkillRegistry 注册中心类 + 所有技能的函数实现。每个函数须有仿真逻辑（资源追踪、随机事件、数值计算、边界校验），接受 **kwargs 返回 dict。代码缩进用 4 空格，可直接 import 运行。"
                 }
             },
-            "required": ["meta_and_roles", "instances_and_skills", "network_topology"],
+            "required": ["meta_and_roles", "instances_and_skills", "network_topology", "skills_code"],
             "additionalProperties": False
         }
     }
@@ -173,45 +181,72 @@ RESPONSE_SCHEMA = {
 def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> None:
     """
     根据粗糙想法，调用 DeepSeek-V4 生成全套混合剧本数据，
-    并在目标目录下自动生成独立的三个剧本文件：
+    并在目标目录下自动生成独立的四个剧本文件：
     1. meta_and_roles.json
     2. instances_and_skills.json
     3. network_topology.json
+    4. skills.py
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("未设置 ANTHROPIC_API_KEY 环境变量。")
 
-    client = anthropic.Anthropic(
-        api_key=api_key,
-        base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic")
-    )
-
-    model_name = "deepseek-v4-pro"
+    # 使用 DeepSeek OpenAI 兼容端点 (Bearer Token 认证，适配 sk- 格式 Key)
+    import httpx
+    api_base = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+    model_name = "deepseek-chat"
 
     # 注入 JSON Schema 约束
-    schema_instruction = f"\n你必须严格遵循以下全局 JSON Schema 输出，不得附加任何自然语言包裹：\n{json.dumps(RESPONSE_SCHEMA['json_schema']['schema'], ensure_ascii=False, indent=2)}\n"
+    schema_json = RESPONSE_SCHEMA["json_schema"]["schema"]
+    schema_instruction = (
+        f"\n你必须严格遵循以下全局 JSON Schema 输出，"
+        f"不得附加任何自然语言包裹：\n"
+        f"{json.dumps(schema_json, ensure_ascii=False, indent=2)}\n"
+    )
+    system_prompt = SYSTEM_PROMPT + schema_instruction
 
     print(">> 正在发起大模型调用，编译剧本网络...")
-    response = client.messages.create(
-        model=model_name,
-        max_tokens=16384,
-        temperature=0.7,
-        system=SYSTEM_PROMPT + schema_instruction,
-        messages=[
-            {"role": "user", "content": f"请基于以下原始灵感编译一套包含丰富拓扑、多模型异构、复杂互动范式（协作/谈判/博弈）的中文复合剧本：{user_idea}"}
-        ]
-    )
+    import time as _time
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            resp = httpx.post(
+                f"{api_base.rstrip('/')}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"请基于以下原始灵感编译一套包含丰富拓扑、多模型异构、复杂互动范式（协作/谈判/博弈）的中文复合剧本：{user_idea}"}
+                    ],
+                    "max_tokens": 16384,
+                    "temperature": 0.7,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=300.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            final_text = data["choices"][0]["message"]["content"]
+            break
+        except Exception as e:
+            last_error = e
+            if attempt < 3:
+                print(f"   [重试 {attempt}/3] 调用失败: {e}，等待 {attempt*5}s 后重试...")
+                _time.sleep(attempt * 5)
+    else:
+        raise RuntimeError(f"API 调用三次均失败，最后错误: {last_error}")
 
-    # 安全解析响应文本，剔除思考链干扰
-    final_text = ""
-    for block in response.content:
-        if hasattr(block, 'text'):
-            final_text += block.text
-
+    # 安全解析响应文本，剔除 Markdown 包裹
+    # final_text 已在上面从 OpenAI 兼容响应中获取
     final_text = final_text.strip()
     if final_text.startswith("```json"):
         final_text = final_text[7:]
+    if final_text.startswith("```"):
+        final_text = final_text[3:]
     if final_text.endswith("```"):
         final_text = final_text[:-3]
     final_text = final_text.strip()
@@ -241,12 +276,25 @@ def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> No
         json.dump(full_blueprint["network_topology"], f3, ensure_ascii=False, indent=2)
     print(f"   [落盘成功] -> {file3_path}")
 
+    # 文件 4 分发：技能可执行代码
+    skills_code = full_blueprint.get("skills_code", "")
+    file4_path = os.path.join(output_directory, "skills.py")
+    with open(file4_path, "w", encoding="utf-8") as f4:
+        f4.write(skills_code)
+    print(f"   [落盘成功] -> {file4_path}")
+
     # 快速结构验证打印
     print("\n======== 剧本包自动化编译完成，下游就绪 ========")
     print(f"1. 声明节点总数: {len(full_blueprint['meta_and_roles']['roles'])}")
     print(f"2. 配置容器总数: {len(full_blueprint['instances_and_skills']['container_instances'])}")
     print(f"3. 宏观拓扑结构: {full_blueprint['network_topology']['global_topology_type']}")
     print(f"4. 包含子网络数: {len(full_blueprint['network_topology']['sub_networks'])}")
+    # 统计技能总数
+    total_skills = sum(
+        len(inst.get("skill_bindings", []))
+        for inst in full_blueprint["instances_and_skills"]["container_instances"].values()
+    )
+    print(f"5. 技能实现总数: {total_skills} (已写入 skills.py)")
 
 # =====================================================================
 # 4. 本地独立测试入口

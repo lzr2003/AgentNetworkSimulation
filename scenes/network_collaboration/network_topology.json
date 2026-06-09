@@ -1,0 +1,124 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "internal_star",
+      "topology_type": "STAR",
+      "description": "公司内部管理层与各部门的星型协作网络",
+      "nodes": [
+        "CEO",
+        "CTO",
+        "CFO",
+        "PM",
+        "DEV_LEAD",
+        "SALES_LEAD"
+      ],
+      "edges": [
+        {
+          "source": "CEO",
+          "target": "CTO",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_10"
+        },
+        {
+          "source": "CEO",
+          "target": "CFO",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_10"
+        },
+        {
+          "source": "CEO",
+          "target": "PM",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_10"
+        },
+        {
+          "source": "CEO",
+          "target": "SALES_LEAD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_10"
+        },
+        {
+          "source": "CTO",
+          "target": "DEV_LEAD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_20"
+        },
+        {
+          "source": "PM",
+          "target": "DEV_LEAD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_20"
+        },
+        {
+          "source": "CFO",
+          "target": "SALES_LEAD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_30"
+        }
+      ]
+    },
+    {
+      "sub_id": "external_negotiation",
+      "topology_type": "MESH",
+      "description": "公司与外部供应商及监管机构的谈判与博弈网络",
+      "nodes": [
+        "SALES_LEAD",
+        "SUPPLIER_A",
+        "SUPPLIER_B",
+        "COMPETITOR",
+        "REGULATOR"
+      ],
+      "edges": [
+        {
+          "source": "SALES_LEAD",
+          "target": "SUPPLIER_A",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "ext_vlan_1"
+        },
+        {
+          "source": "SALES_LEAD",
+          "target": "SUPPLIER_B",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "ext_vlan_2"
+        },
+        {
+          "source": "SUPPLIER_A",
+          "target": "SUPPLIER_B",
+          "paradigm": "COLLABORATION",
+          "channel_id": "ext_vlan_3"
+        },
+        {
+          "source": "COMPETITOR",
+          "target": "SALES_LEAD",
+          "paradigm": "GAME",
+          "channel_id": "ext_vlan_4"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "SALES_LEAD",
+          "paradigm": "GAME",
+          "channel_id": "ext_vlan_5"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "SUPPLIER_A",
+          "paradigm": "GAME",
+          "channel_id": "ext_vlan_6"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "SUPPLIER_B",
+          "paradigm": "GAME",
+          "channel_id": "ext_vlan_7"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "COMPETITOR",
+          "paradigm": "GAME",
+          "channel_id": "ext_vlan_8"
+        }
+      ]
+    }
+  ]
+}

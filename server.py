@@ -47,13 +47,16 @@ import asyncio
 import time
 
 # 导入平台核心模块
-from agent_network.agent import Agent, AgentRegistry
+from agent_network.agent import Agent, AgentRegistry, Message
+from agent_network.agent_hub import AgentHub
 from agent_network.llm_parser import parse_script, get_api_config, SceneDefinition, AgentDef
 from agent_network.container_runtime import get_runtime, ContainerRuntime
+from agent_network.container_controller import ContainerController
 from agent_network.logger import SimulationLogger, LogLevel
 from agent_network.event_bus import PacketRecorder
 from agent_network.tool import ToolRegistry
 from agent_network.skill import SkillRegistry
+from agent_network.workflow import WorkflowEngine
 
 # ── 统一 Agent 日志缓冲区 ──
 _agent_logs: List[Dict[str, Any]] = []  # 内存/容器模式共用日志

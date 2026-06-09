@@ -1,0 +1,195 @@
+{
+  "container_instances": {
+    "CEO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0",
+        "requests==2.31.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "allocate_budget",
+          "endpoint": "http://ceo.internal:8000/allocate",
+          "description": "分配预算给各部门"
+        },
+        {
+          "skill_name": "approve_strategy",
+          "endpoint": "http://ceo.internal:8000/approve",
+          "description": "批准或驳回战略提案"
+        }
+      ]
+    },
+    "CTO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "assign_technical_task",
+          "endpoint": "http://cto.internal:8000/assign",
+          "description": "分配技术任务给开发组"
+        },
+        {
+          "skill_name": "evaluate_tech_debt",
+          "endpoint": "http://cto.internal:8000/evaluate",
+          "description": "评估当前技术债务"
+        }
+      ]
+    },
+    "CFO": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "calculate_budget",
+          "endpoint": "http://cfo.internal:8000/calculate",
+          "description": "计算预算使用情况"
+        },
+        {
+          "skill_name": "audit_expense",
+          "endpoint": "http://cfo.internal:8000/audit",
+          "description": "审计部门支出"
+        }
+      ]
+    },
+    "PM": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "plan_sprint",
+          "endpoint": "http://pm.internal:8000/plan",
+          "description": "规划迭代任务"
+        },
+        {
+          "skill_name": "track_progress",
+          "endpoint": "http://pm.internal:8000/track",
+          "description": "跟踪项目进度"
+        }
+      ]
+    },
+    "DEV_LEAD": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "code_review",
+          "endpoint": "http://devlead.internal:8000/review",
+          "description": "代码审查"
+        },
+        {
+          "skill_name": "estimate_effort",
+          "endpoint": "http://devlead.internal:8000/estimate",
+          "description": "估算开发工作量"
+        }
+      ]
+    },
+    "SALES_LEAD": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "negotiate_contract",
+          "endpoint": "http://sales.internal:8000/negotiate",
+          "description": "与客户谈判合同"
+        },
+        {
+          "skill_name": "generate_lead",
+          "endpoint": "http://sales.internal:8000/lead",
+          "description": "生成潜在客户列表"
+        }
+      ]
+    },
+    "SUPPLIER_A": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "offer_pricing",
+          "endpoint": "http://suppliera.ext:8000/offer",
+          "description": "提供定价方案"
+        },
+        {
+          "skill_name": "adjust_terms",
+          "endpoint": "http://suppliera.ext:8000/adjust",
+          "description": "调整合同条款"
+        }
+      ]
+    },
+    "SUPPLIER_B": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "propose_service",
+          "endpoint": "http://supplierb.ext:8000/propose",
+          "description": "提出服务方案"
+        },
+        {
+          "skill_name": "renegotiate",
+          "endpoint": "http://supplierb.ext:8000/renegotiate",
+          "description": "重新谈判条款"
+        }
+      ]
+    },
+    "COMPETITOR": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "poach_customer",
+          "endpoint": "http://competitor.ext:8000/poach",
+          "description": "挖走客户"
+        },
+        {
+          "skill_name": "price_war",
+          "endpoint": "http://competitor.ext:8000/price",
+          "description": "发起价格战"
+        }
+      ]
+    },
+    "REGULATOR": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "inspect_compliance",
+          "endpoint": "http://regulator.ext:8000/inspect",
+          "description": "检查合规性"
+        },
+        {
+          "skill_name": "impose_fine",
+          "endpoint": "http://regulator.ext:8000/fine",
+          "description": "施加罚款"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "scenario_metadata": {
+    "title": "网络软件公司内部协作与外部博弈",
+    "global_rules": "仿真时限为90天，每个角色需在截止日期前达成量化目标。资源总量有限，角色间可通过协作、谈判或竞争获取资源。系统每10天触发一次资源再分配事件。"
+  },
+  "roles": {
+    "CEO": {
+      "name": "首席执行官",
+      "model_backbone": "claudecode",
+      "identity": "公司最高决策者，统筹全局战略，协调各部门资源。",
+      "core_goal": "公司整体利润增长20%，市场份额提升5%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "CTO": {
+      "name": "首席技术官",
+      "model_backbone": "openclaw",
+      "identity": "技术部门负责人，主导产品研发与技术路线。",
+      "core_goal": "完成两个核心模块的交付，技术债务降低30%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "CFO": {
+      "name": "首席财务官",
+      "model_backbone": "claudecode",
+      "identity": "财务部门负责人，控制成本与预算分配。",
+      "core_goal": "预算结余大于10%，降低运营成本15%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "PM": {
+      "name": "产品经理",
+      "model_backbone": "openclaw",
+      "identity": "产品需求定义与项目进度管理。",
+      "core_goal": "按时发布两个版本，用户满意度提升10%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "DEV_LEAD": {
+      "name": "研发组长",
+      "model_backbone": "openclaw",
+      "identity": "开发团队负责人，负责代码质量与交付效率。",
+      "core_goal": "代码缺陷率低于1%，迭代周期缩短20%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "SALES_LEAD": {
+      "name": "销售总监",
+      "model_backbone": "claudecode",
+      "identity": "销售团队负责人，开拓市场与客户关系。",
+      "core_goal": "签约新客户10个，销售额增长30%",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SUPPLIER_A": {
+      "name": "供应商A（云服务）",
+      "model_backbone": "claudecode",
+      "identity": "外部云服务提供商，提供计算与存储资源。",
+      "core_goal": "与公司签订长期合同，利润最大化",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SUPPLIER_B": {
+      "name": "供应商B（数据服务）",
+      "model_backbone": "openclaw",
+      "identity": "外部数据服务提供商，提供API与数据支持。",
+      "core_goal": "扩大服务范围，获取更高分成比例",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "COMPETITOR": {
+      "name": "竞争对手公司",
+      "model_backbone": "claudecode",
+      "identity": "同行业竞争对手，争夺同一市场份额。",
+      "core_goal": "抢占公司客户，降低公司市场占有率",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "REGULATOR": {
+      "name": "监管机构",
+      "model_backbone": "claudecode",
+      "identity": "行业监管机构，制定合规标准与处罚。",
+      "core_goal": "确保所有公司合规经营，罚款收入最大化",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    }
+  }
+}
