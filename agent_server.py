@@ -24,6 +24,7 @@ import os
 import sys
 import json
 import time
+import asyncio
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -126,6 +127,9 @@ app = FastAPI(title=f"Agent {AGENT_NAME}")
 
 turn = 0
 last_action: Dict[str, Any] = {}
+_allowed_targets: set = set()  # 通信权限矩阵
+_channel_map: Dict[str, str] = {}  # {(from_id, to_id): channel_id} 来自 topology edge
+_current_talk: str = ""        # 当前会话/对话 ID（仿真启动时生成）
 
 _agent_logger = get_logger()
 
@@ -252,6 +256,13 @@ async def decide(req: DecideRequest = None):
     effective_name = ctx.get("agent_name", AGENT_NAME)
     effective_role = ctx.get("agent_role", AGENT_ROLE)
 
+    # 存储通信权限矩阵
+    global _allowed_targets, _channel_map, _current_talk
+    _allowed_targets = set(ctx.get("comm_matrix", {}).get(effective_id, []))
+    # 存储信道映射和会话 ID（供 /act 使用）
+    _channel_map = ctx.get("channel_map", {})
+    _current_talk = ctx.get("talk", "")
+
     # 注入场景角色目标和技能（只在身份变化时重建 brain）
     if effective_id != AGENT_ID:
         injected_goals = []
@@ -272,8 +283,9 @@ async def decide(req: DecideRequest = None):
         last_action = action.to_dict() if hasattr(action, 'to_dict') else str(action)
         act_type = action.type if hasattr(action, 'type') else "unknown"
         act_target = getattr(action, 'target', '')
+        content_text = getattr(action, 'content', '') or getattr(action, 'reasoning', '')
         _log_agent("decide",
-                   f"{act_type} → {act_target}: {getattr(action, 'content', '')[:100]}",
+                   content_text[:100],
                    from_id=effective_id, target=act_target,
                    action_type=act_type,
                    content=getattr(action, 'content', '')[:300],
@@ -306,52 +318,62 @@ async def act():
     action_target = last_action.get("target", "")
     action_content = last_action.get("content", "")
     result["action"] = last_action
-    relay_ok = result.get("relayed", None)
-    if relay_ok is True:
-        act_status = "success"
-    elif relay_ok is False:
-        act_status = "failed"
-    else:
-        act_status = "executed"  # 非消息类动作（wait/think等）
-    _log_agent("act",
-               f"{action_type} → {action_target}: {action_content[:100]}",
-               action_type=action_type, target=action_target,
-               content=action_content[:300], status=act_status)
 
-    # 如果是发送消息，通过 RemoteBus 转发
+    # 如果是发送消息，通过 RemoteBus 转发（日志在发送结果确定后记录）
     if action_type in ("send_message", "broadcast"):
-        try:
-            relay_start = time.time()
-            if action_type == "send_message":
-                ok = comm.send(AGENT_ID, AGENT_NAME, action_target, action_content)
-            else:
-                ok = comm.broadcast(AGENT_ID, AGENT_NAME, action_content)
-            latency = (time.time() - relay_start) * 1000
-            result["relayed"] = ok
-            # 记录出站报文
-            destination = action_target if action_type == "send_message" else "broadcast"
-            PacketRecorder.record_outbound(
-                agent_id=AGENT_ID, dst_ip=f"bus", dst_port=9000,
-                method="POST", path="/relay", status=200 if ok else 0,
-                latency_ms=latency, content=action_content,
-                agent_to=destination,
-            )
+        # 检查通信权限
+        if action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
+            result["relayed"] = False
+            _log_agent("act", f"无通信权限: {action_target}（允许: {', '.join(sorted(_allowed_targets))}）",
+                       action_type=action_type, target=action_target, status="failed")
+        else:
+            try:
+                relay_start = time.time()
+                # 从信道映射中查找当前 Agent→目标 的 channel_id
+                chan_id = _channel_map.get(f"{AGENT_ID}->{action_target}", "") or \
+                          _channel_map.get(f"{AGENT_ID.lower()}->{action_target.lower()}", "")
+                if action_type == "send_message":
+                    ok = await asyncio.to_thread(comm.send, AGENT_ID, AGENT_NAME, action_target, action_content,
+                                                 chan_id, _current_talk)
+                else:
+                    ok = await asyncio.to_thread(comm.broadcast, AGENT_ID, AGENT_NAME, action_content, _allowed_targets,
+                                                 chan_id, _current_talk)
+                latency = (time.time() - relay_start) * 1000
+                result["relayed"] = ok
+                _log_agent("act",
+                           action_content[:100] or action_type,
+                           action_type=action_type, target=action_target,
+                           content=action_content[:300], status="success" if ok else "failed")
+                # 记录出站报文
+                destination = action_target if action_type == "send_message" else "broadcast"
+                PacketRecorder.record_outbound(
+                    agent_id=AGENT_ID, dst_ip=f"bus", dst_port=9000,
+                    method="POST", path="/relay", status=200 if ok else 0,
+                    latency_ms=latency, content=action_content,
+                    agent_to=destination,
+                )
+                # 转发到 Packet Monitor
+                if PACKET_MONITOR_URL:
+                    try:
+                        requests.post(f"{PACKET_MONITOR_URL}/api/packets/ingest", json={
+                            "from_id": AGENT_ID, "from_name": AGENT_NAME,
+                            "to": action_target if action_type == "send_message" else "broadcast",
+                            "content": action_content, "type": action_type,
+                            "direction": "outbound",
+                        }, timeout=1)
+                    except Exception:
+                        pass
+            except Exception as e:
+                result["relay_error"] = str(e)
+                _log_agent("act", f"发送异常: {e}",
+                           action_type=action_type, target=action_target, status="failed")
+    else:
+        # 非消息类动作（wait/think/analyze/plan 等）
+        _log_agent("act", action_content[:100] or action_type,
+                   action_type=action_type, target=action_target,
+                   content=action_content[:300], status="executed")
 
-            # 转发到 Packet Monitor
-            if PACKET_MONITOR_URL:
-                try:
-                    requests.post(f"{PACKET_MONITOR_URL}/api/packets/ingest", json={
-                        "from_id": AGENT_ID, "from_name": AGENT_NAME,
-                        "to": action_target if action_type == "send_message" else "broadcast",
-                        "content": action_content, "type": action_type,
-                        "direction": "outbound",
-                    }, timeout=1)
-                except Exception:
-                    pass
-        except Exception as e:
-            result["relay_error"] = str(e)
-
-    elif action_type == "execute_skill":
+    if action_type == "execute_skill":
         skill_name = last_action.get("skill", action_target)
         skill_params = last_action.get("params", {})
         try:

@@ -56,7 +56,7 @@ window.addEventListener('message', (e) => {
     const tt = document.getElementById('tooltip');
     if (found) {
       hoveredAgent = found;
-      const statusLabel = { idle:'空闲', running:'运行中', paused:'已暂停', stopped:'已停止', error:'异常', created:'已创建' };
+      const statusLabel = { idle:'空闲', running:'运行中', paused:'已暂停', stopped:'已停止', error:'异常', created:'已创建', decided:'已决策', messaged:'已发送', send_failed:'发送失败', analyzed:'分析中' };
       const roleLabel = { scout:'侦察兵', commander:'指挥官', analyst:'分析师', support:'支援', brain:'Brain', 'claude-code':'Claude Code', openclaw:'OpenClaw', observer:'观察员' };
 const backendLabel = { brain:'Brain', 'claude-code':'Claude Code', openclaw:'OpenClaw' };
       let html = '<div class=tt-name>' + (found.name || found.agent_id) + '</div>';
@@ -107,6 +107,14 @@ if (msg.type === 'agent_log' && msg.data) {
     const stIcon = status === 'success' ? '✅' : status === 'failed' ? '❌' : status === 'decided' ? '💭' : '➡️';
     const msgText = from + ' ' + stIcon + ' ' + action + (to && to !== '-' ? ' → ' + to : '') + ' | ' + (l.detail||'').slice(0,80);
     logEntry('agent', msgText, ts);
+    return;
+}
+// ── Agent 状态实时更新 ──
+if (msg.type === 'agent_status' && msg.data) {
+    msg.data.forEach(s => {
+        const existing = agents.find(a => a.agent_id === s.agent_id);
+        if (existing) { existing.status = s.status; }
+    });
     return;
 }
 if (msg.type === 'status' || msg.type === 'all') {

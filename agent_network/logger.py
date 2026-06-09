@@ -35,7 +35,7 @@ class LogLevel(Enum):
 class LogEntry:
     def __init__(self, level: LogLevel, event: str, message: str = "",
                  agent_id: str = "", details: Dict = None):
-        self.timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        self.timestamp = datetime.now().isoformat(timespec="milliseconds")
         self.level = level.name
         self.event = event
         self.agent_id = agent_id
@@ -78,11 +78,15 @@ class SimulationLogger:
             "by_level": {},
             "by_event": {},
             "by_agent": {},
-            "start_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "start_time": datetime.now().isoformat(timespec="seconds"),
         }
         # 持久化目录
         self._log_dir = log_dir or os.environ.get("LOG_DIR", "./data/logs")
-        self._file_path = ""
+        self._file_path = ""           # 向后兼容：指向当前 session 的 global.jsonl
+        self._session_dir = ""         # 当前 session 文件夹
+        self._session_comm_path = ""   # communication.jsonl
+        self._session_behavior_path = ""  # behavior.jsonl
+        self._session_active = False
         self._file_lock = threading.Lock()
         self._init_file()
         self._initialized = True
@@ -94,19 +98,62 @@ class SimulationLogger:
         if not self._log_dir:
             return
         os.makedirs(self._log_dir, exist_ok=True)
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_str = datetime.now().strftime("%Y-%m-%d")
         self._file_path = os.path.join(self._log_dir, f"{self.name}_{date_str}.jsonl")
 
-    def _write_file(self, entry: Dict):
-        """追加一行 JSON 到日志文件"""
-        if not self._file_path:
+    def start_session(self, scene_name: str):
+        """开始新的仿真会话 — 创建 {剧本名}_{时间戳}/ 文件夹"""
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")  # 精确到微秒
+        safe_name = scene_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+        self._session_dir = os.path.join(self._log_dir, f"{safe_name}_{ts}")
+        os.makedirs(self._session_dir, exist_ok=True)
+        self._set_session_paths()
+        self._session_active = True
+        # 写入 session 元信息
+        meta = {
+            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+            "level": "INFO",
+            "event": "session_start",
+            "agent_id": "",
+            "message": f"Session started: {scene_name}",
+            "details": {"scene_name": scene_name, "session_dir": self._session_dir},
+        }
+        self._append_file(self._file_path, meta)
+
+    def set_session_dir(self, session_dir: str):
+        """复用已有 session 文件夹（供跨容器同步，由 message_bus 调用）"""
+        self._session_dir = session_dir
+        self._set_session_paths()
+        self._session_active = True
+
+    def _set_session_paths(self):
+        """根据 _session_dir 设置三个日志文件路径"""
+        self._file_path = os.path.join(self._session_dir, "global.jsonl")
+        self._session_comm_path = os.path.join(self._session_dir, "communication.jsonl")
+        self._session_behavior_path = os.path.join(self._session_dir, "behavior.jsonl")
+
+    def _append_file(self, filepath: str, entry: Dict):
+        """向指定文件追加一行 JSON"""
+        if not filepath:
             return
         try:
             with self._file_lock:
-                with open(self._file_path, "a", encoding="utf-8") as f:
+                with open(filepath, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
-            pass  # 文件写入失败不影响内存日志
+            pass
+
+    def _write_file(self, entry: Dict):
+        """追加日志到对应文件 — 全局/通信/行为三路写入"""
+        event = entry.get("event", "")
+        # 全局日志：全部写入
+        self._append_file(self._file_path, entry)
+        # 通信日志：仅 agent_message
+        if event == "agent_message" and self._session_comm_path:
+            self._append_file(self._session_comm_path, entry)
+        # 行为日志：agent_action, agent_decide, decide, act
+        if event in ("agent_action", "agent_decide", "decide", "act") and self._session_behavior_path:
+            self._append_file(self._session_behavior_path, entry)
 
     def export(self, fmt: str = "jsonl", limit: int = 0) -> str:
         """
@@ -145,19 +192,41 @@ class SimulationLogger:
         return filepath
 
     def list_log_files(self) -> List[Dict]:
-        """列出所有持久化的日志文件"""
+        """列出所有持久化的日志文件（支持 session 文件夹 + 旧版单文件）"""
         if not self._log_dir or not os.path.isdir(self._log_dir):
             return []
-        files = []
-        for f in sorted(os.listdir(self._log_dir), reverse=True):
-            if f.endswith(".jsonl"):
-                fp = os.path.join(self._log_dir, f)
-                files.append({
-                    "name": f,
-                    "size_bytes": os.path.getsize(fp),
-                    "path": fp,
+        sessions = []
+        for entry in sorted(os.listdir(self._log_dir), reverse=True):
+            entry_path = os.path.join(self._log_dir, entry)
+            if os.path.isdir(entry_path):
+                # Session 文件夹
+                files = []
+                for f in sorted(os.listdir(entry_path)):
+                    if f.endswith(".jsonl"):
+                        fp = os.path.join(entry_path, f)
+                        files.append({
+                            "name": f,
+                            "size_bytes": os.path.getsize(fp),
+                            "path": fp,
+                        })
+                if files:
+                    sessions.append({
+                        "session": entry,
+                        "path": entry_path,
+                        "files": files,
+                    })
+            elif entry.endswith(".jsonl"):
+                # 旧版单文件（兼容）
+                sessions.append({
+                    "session": None,
+                    "path": None,
+                    "files": [{
+                        "name": entry,
+                        "size_bytes": os.path.getsize(entry_path),
+                        "path": entry_path,
+                    }],
                 })
-        return files
+        return sessions
 
     # ── 便捷方法 ──
 
@@ -182,8 +251,17 @@ class SimulationLogger:
                   details={"prompt_snippet": prompt_snippet[:300], "decision": decision or {}})
 
     def agent_message(self, from_id: str, to: str, content: str, reasoning: str = "",
-                      latency_ms: float = 0, status: str = "success"):
-        """记录 Agent 间通信报文"""
+                      latency_ms: float = 0, status: str = "success",
+                      # ── 网络层字段 ──
+                      src_ip: str = "", src_port: int = 0,
+                      dst_ip: str = "", dst_port: int = 0,
+                      protocol: str = "TCP/HTTP",
+                      packet_len: int = 0, header_len: int = 0, payload_len: int = 0,
+                      tcp_flags: str = "",
+                      channel_id: str = "",
+                      message_type: str = "relay",
+                      talk: str = ""):
+        """记录 Agent 间通信报文（含完整网络层元数据）"""
         self._log(LogLevel.INFO, "agent_message",
                   f"{from_id} → {to}: {content[:100]}",
                   agent_id=from_id,
@@ -193,6 +271,15 @@ class SimulationLogger:
                       "reasoning": reasoning[:200],
                       "latency_ms": round(latency_ms, 1),
                       "status": status,
+                      # ── 网络层 ──
+                      "src_ip": src_ip, "src_port": src_port,
+                      "dst_ip": dst_ip, "dst_port": dst_port,
+                      "protocol": protocol,
+                      "packet_len": packet_len, "header_len": header_len, "payload_len": payload_len,
+                      "tcp_flags": tcp_flags,
+                      "channel_id": channel_id,
+                      "message_type": message_type,
+                      "talk": talk,
                   })
 
     def container_event(self, agent_id: str, event: str, message: str = "", **kw):
@@ -270,7 +357,7 @@ class SimulationLogger:
             self._entries.clear()
             self._stats = {
                 "total": 0, "by_level": {}, "by_event": {}, "by_agent": {},
-                "start_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "start_time": datetime.now().isoformat(timespec="seconds"),
             }
         return self
 

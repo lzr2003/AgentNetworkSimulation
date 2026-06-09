@@ -297,6 +297,7 @@ class Agent:
             "agent_id": self.agent_id,
             "name": self.name,
             "role": self.role,
+            "url": getattr(self, 'container_url', ''),
             "container_id": self.container_id,
             "status": self.status,
             "skills": self.skills,

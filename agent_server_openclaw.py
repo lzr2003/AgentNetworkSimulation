@@ -17,6 +17,7 @@ import os
 import sys
 import json
 import time
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
@@ -59,6 +60,9 @@ app = FastAPI(title=f"Agent {AGENT_NAME} (OpenCLAW)")
 turn = 0
 last_action: Dict[str, Any] = {}
 inbox: list = []
+_current_effective_id = AGENT_ID
+_current_effective_name = AGENT_NAME
+_allowed_targets: set = set()  # 通信权限矩阵
 
 # ── Tool definitions (match Agent action space) ──
 _TOOLS = [
@@ -125,13 +129,16 @@ _TOOLS = [
 
 
 def _log_agent(event: str, detail: str, **kw):
+    """结构化动作日志上报 — 使用注入的场景身份"""
     timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    effective_id = kw.pop("from_id", _current_effective_id)
+    effective_name = kw.pop("from_name", _current_effective_name)
     try:
         requests.post(f"{SERVER_URL}/api/logs/agent", json={
-            "agent_id": AGENT_ID, "agent_name": AGENT_NAME,
+            "agent_id": effective_id, "agent_name": effective_name,
             "event": event, "detail": detail,
             "timestamp": timestamp,
-            "from_agent": AGENT_ID,
+            "from_agent": effective_id,
             "to_agent": kw.get("target", kw.get("to", "")),
             "action": kw.get("action_type", event),
             "action_status": kw.get("status", "success"),
@@ -141,31 +148,48 @@ def _log_agent(event: str, detail: str, **kw):
         pass
 
 
-def _build_system_prompt() -> str:
-    system = AGENT_SYSTEM_PROMPT or "你是一个仿真场景中的角色，根据你的身份和目标做出合理决策。"
-    actions_text = ", ".join(AGENT_ACTION_SPACE) if AGENT_ACTION_SPACE else "send_message, broadcast, analyze, plan, wait"
+def _build_system_prompt(context: dict = None) -> str:
+    """构建系统提示词 — 支持场景身份注入"""
+    ctx = context or {}
+    identity = ctx.get("agent_name", _current_effective_name)
+    role = ctx.get("agent_role", AGENT_ROLE)
+    core_goal = ctx.get("core_goal") or AGENT_CORE_GOAL
+    hidden_secret = ctx.get("hidden_secret") or AGENT_HIDDEN_SECRET
+    action_space = ctx.get("action_space") or AGENT_ACTION_SPACE
+    skills_list = ctx.get("skills_list", [])
+    background_rules = ctx.get("background_rules") or AGENT_SYSTEM_PROMPT
+
+    system = background_rules or "你是一个仿真场景中的角色，根据你的身份和目标做出合理决策。"
+    actions_text = ", ".join(action_space) if action_space else "send_message, broadcast, analyze, plan, wait"
+
+    skills_text = ""
+    if skills_list:
+        skills_text = "\n- 可用技能:\n" + "\n".join(
+            f"    {s['name']}: {s.get('desc','')}" for s in skills_list
+        )
+
     return f"""{system}
 
 ## 你的身份
-- 名字: {AGENT_NAME}
-- 角色: {AGENT_ROLE}
-- 核心目标: {AGENT_CORE_GOAL or '完成场景任务'}
-- 隐藏秘密: {AGENT_HIDDEN_SECRET or '无'}
-- 可用行动: {actions_text}
-- 初始资产: {json.dumps(AGENT_INITIAL_ASSETS, ensure_ascii=False) if AGENT_INITIAL_ASSETS else '无'}
+- 名字: {identity}
+- 角色: {role}
+- 核心目标: {core_goal or '完成场景任务'}
+- 隐藏秘密: {hidden_secret or '无'}
+- 可用行动: {actions_text}{skills_text}
 
 行为准则：
+- 必须立即采取具体行动，绝对不能wait！
 - 始终围绕核心目标和秘密行动
-- 用 send_message 与相关 Agent 通信（target 必须用 agent_id）
+- 用 send_message 主动与相关 Agent 通信（target 必须用 agent_id）
 - 合理使用 analyze_situation 和 plan_strategy
 - 用中文回复"""
 
 
 def _build_user_message(inbox_msgs: list, context: dict = None) -> str:
     context = context or {}
-    known = context.get("known_agents", [])
+    known = context.get("agents", context.get("known_agents", []))
     known_list = "\n".join(
-        f"  - {a.get('name', a.get('agent_id', '?'))} ({a.get('role', '?')}) agent_id={a.get('agent_id', '?')}"
+        f"  - {a.get('name', a.get('agent_id', '?'))} (agent_id={a.get('id', a.get('agent_id', '?'))})"
         for a in known) if known else "  none"
 
     inbox_text = "（空）"
@@ -286,31 +310,44 @@ async def receive_message(msg: MessageIn):
 
 @app.post("/decide")
 async def decide(req: DecideRequest = None):
-    global turn, last_action
+    """触发 LLM 决策 — 支持场景身份注入"""
+    global turn, last_action, _current_effective_id, _current_effective_name
     turn += 1
     ctx = req.context if req else {}
     ctx["round"] = turn
 
+    # 使用注入的身份（场景 Agent），覆盖容器自身的身份
+    _current_effective_id = ctx.get("agent_id", AGENT_ID)
+    _current_effective_name = ctx.get("agent_name", AGENT_NAME)
+
+    # 存储通信权限矩阵
+    global _allowed_targets
+    _allowed_targets = set(ctx.get("comm_matrix", {}).get(_current_effective_id, []))
+
     if not API_KEY:
         return {
-            "agent_id": AGENT_ID, "agent_name": AGENT_NAME,
+            "agent_id": _current_effective_id, "agent_name": _current_effective_name,
             "turn": turn, "backend": "openclaw",
             "type": "wait", "target": "", "content": "",
             "reasoning": "no API key configured",
         }
 
     try:
-        system = _build_system_prompt()
+        system = _build_system_prompt(ctx)
         user = _build_user_message(inbox, ctx)
         action = _call_anthropic_with_tools(system, user)
         last_action = action
-        _log_agent("decide", f"{action.get('action')} → {action.get('target', '')}")
+        act_content = action.get('content', '')
+        act_reasoning = action.get('reasoning', '')
+        _log_agent("decide", (act_content or act_reasoning)[:100],
+                   action_type=action.get('action'), target=action.get('target', ''),
+                   content=act_content[:200], reasoning=act_reasoning[:200], status="decided")
     except Exception as e:
         action = {"reasoning": str(e), "action": "wait", "target": "", "content": ""}
         last_action = action
 
     return {
-        "agent_id": AGENT_ID, "agent_name": AGENT_NAME,
+        "agent_id": _current_effective_id, "agent_name": _current_effective_name,
         "turn": turn, "backend": "openclaw",
         "type": action.get("action", "wait"),
         "target": action.get("target", ""),
@@ -331,20 +368,31 @@ async def act():
     result: Dict[str, Any] = {"action": last_action, "backend": "openclaw"}
 
     if action_type in ("send_message", "broadcast"):
-        try:
-            if action_type == "send_message":
-                comm.send(AGENT_ID, AGENT_NAME, action_target, action_content)
-            else:
-                comm.broadcast(AGENT_ID, AGENT_NAME, action_content)
-            result["relayed"] = True
-        except Exception as e:
-            result["relay_error"] = str(e)
+        # 检查通信权限
+        if action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
+            result["relayed"] = False
+            _log_agent("act", f"无通信权限: {action_target}（允许: {', '.join(sorted(_allowed_targets))}）",
+                       action_type=action_type, target=action_target, status="failed")
+        else:
+            try:
+                if action_type == "send_message":
+                    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name, action_target, action_content)
+                else:
+                    ok = await asyncio.to_thread(comm.broadcast, _current_effective_id, _current_effective_name, action_content, _allowed_targets)
+                result["relayed"] = ok
+                _log_agent("act", action_content[:100] or action_type,
+                           action_type=action_type, target=action_target,
+                           content=action_content[:300], status="success" if ok else "failed")
+            except Exception as e:
+                result["relay_error"] = str(e)
+                _log_agent("act", f"发送异常: {e}",
+                           action_type=action_type, target=action_target, status="failed")
 
     if LOG_COLLECTOR_URL:
         try:
             requests.post(f"{LOG_COLLECTOR_URL}/api/logs/ingest", json={
                 "level": "INFO", "event": "agent_act",
-                "agent_id": AGENT_ID, "agent_name": AGENT_NAME,
+                "agent_id": _current_effective_id, "agent_name": _current_effective_name,
                 "index": "logs-agent", "message": f"Act: {str(last_action)[:200]}",
                 "details": result,
             }, timeout=1)

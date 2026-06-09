@@ -15,7 +15,7 @@ RUN npm config set registry https://registry.npmmirror.com && \
 WORKDIR /app
 
 # Python dependencies for the agent server
-RUN pip install --no-cache-dir --break-system-packages -i https://mirrors.aliyun.com/pypi/simple/ fastapi uvicorn pydantic
+RUN pip install --no-cache-dir --break-system-packages -i https://mirrors.aliyun.com/pypi/simple/ fastapi uvicorn pydantic httpx requests
 
 COPY agent_server_claude.py /app/
 COPY agent_network/ /app/agent_network/

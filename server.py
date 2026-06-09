@@ -44,6 +44,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import uvicorn
 import asyncio
+import uuid
 import time
 
 # 导入平台核心模块
@@ -222,15 +223,8 @@ async def index():
 # ═══════════════════════════════════════════════
 
 def _inject_runtime_url(status: dict) -> dict:
-    """注入容器运行时的实际 URL（IP直连用）"""
-    try:
-        runtime = get_runtime()
-        ca = runtime.agents.get(status["agent_id"])
-        if ca and ca.url:
-            status["url"] = ca.url
-    except Exception:
-        pass
-    return status
+    """注入容器运行时的实际 URL（get_status 已包含 url 字段）"""
+    return status  # url 已在 Agent.get_status() 中通过 container_url 返回
 
 
 @app.get("/api/agents", response_model=List[AgentStatus])
@@ -524,6 +518,9 @@ _pending_scene_def: Optional[SceneDefinition] = None
 _pending_layout: Dict[str, tuple] = {}
 _pending_config: Dict[str, str] = {}
 
+# 通信基础设施（关系矩阵 → 通信权限）
+_comm_matrix: Dict[str, set] = {}  # agent_id → {allowed_target_ids}
+
 
 def _setup_scene(scene_def: SceneDefinition) -> Dict[str, Any]:
     """Step 1: 绘制场景 — 创建 Agent、计算布局、注册，不启动容器"""
@@ -531,6 +528,8 @@ def _setup_scene(scene_def: SceneDefinition) -> Dict[str, Any]:
 
     AgentRegistry.reset()
     PacketRecorder.reset()
+    _agent_logs.clear()  # 清空上轮仿真日志
+    logger.reset()       # 清空结构化日志
 
     from agent_network.comm import RemoteBus
     remote_bus = RemoteBus(message_bus_url=_MESSAGE_BUS_URL)
@@ -578,7 +577,7 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     import requests as _req
 
     runtime = get_runtime()
-    runtime.stop_all()
+    runtime.reset()  # 清理上一轮的容器占用标记，释放池容器
 
     created_cas = []
     for ad in scene_def.agents:
@@ -587,6 +586,10 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
             extra_meta=ad.extra_meta if ad.extra_meta else None,
         )
         created_cas.append((ca, ad.tasks))
+        # 直接给 AgentRegistry 中的 Agent 设置容器 URL
+        agent = AgentRegistry.get(ca.agent_id)
+        if agent:
+            agent.container_url = ca.url
 
     time.sleep(1)
     for ca, _ in created_cas:
@@ -600,8 +603,36 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     # 获取事件触发器
     event_triggers = getattr(scene_def, 'event_triggers', []) or []
 
-    # ── 构建 agent_id → url 映射 ──
-    agent_map = {ca.agent_id: ca for ca, _ in created_cas}
+    # ── 构建通信矩阵（从 workflow edges，双向）──
+    global _comm_matrix
+    _comm_matrix.clear()
+    for edge in (scene_def.workflow or []):
+        src = edge.get("from", "").lower()
+        dst = edge.get("to", "").lower()
+        if src and dst:
+            _comm_matrix.setdefault(src, set()).add(dst)
+            _comm_matrix.setdefault(dst, set()).add(src)
+
+    # ── 初始化 session 日志文件夹（server + message_bus 同步）──
+    logger.start_session(scene_def.scene_name)
+    try:
+        _req.post(f"{_MESSAGE_BUS_URL}/session/start",
+                  params={"session_dir": logger._session_dir}, timeout=3)
+    except Exception:
+        pass  # message_bus 不可达时不阻塞仿真
+
+    # ── 生成会话 ID ──
+    talk_id = f"talk-{uuid.uuid4().hex[:12]}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # ── 构建信道映射: {(from_id, to_id): channel_id} ──
+    channel_map: Dict[str, str] = {}
+    for edge in (scene_def.workflow or []):
+        src = edge.get("from", "")
+        dst = edge.get("to", "")
+        ch = edge.get("channel_id", "")
+        if src and dst:
+            channel_map[f"{src}->{dst}"] = ch
+            channel_map[f"{src.lower()}->{dst.lower()}"] = ch  # 小写别名，方便查找
 
     # ── 运行仿真轮次: 广播模式 ──
     workflow_steps = scene_def.workflow if scene_def.workflow else []
@@ -633,6 +664,9 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
             "agents": [{"id": ca.agent_id, "role": ca.role, "name": ca.name}
                        for ca, _ in created_cas],
             "tasks": {ca.agent_id: tasks for ca, tasks in created_cas},
+            "comm_matrix": {k: list(v) for k, v in _comm_matrix.items()},
+            "channel_map": channel_map,
+            "talk": talk_id,
         }
         round_result = runtime.run_round(context)
         results_log.append(round_result)
@@ -1080,13 +1114,16 @@ async def list_log_files():
 
 @app.get("/api/logs/download/{filename:path}")
 async def download_log_file(filename: str):
-    """下载指定日志文件"""
+    """下载指定日志文件（支持 session 子目录路径，如 session_name/global.jsonl）"""
     from fastapi.responses import FileResponse
-    log_dir = logger._log_dir
-    filepath = os.path.join(log_dir, filename)
+    log_dir = os.path.realpath(logger._log_dir)
+    filepath = os.path.realpath(os.path.join(log_dir, filename))
+    # 安全检查：防止路径穿越
+    if not filepath.startswith(log_dir + os.sep) and filepath != log_dir:
+        raise HTTPException(403, "Path traversal denied")
     if not os.path.isfile(filepath):
         raise HTTPException(404, f"Log file '{filename}' not found")
-    return FileResponse(filepath, filename=filename)
+    return FileResponse(filepath, filename=os.path.basename(filename))
 
 
 # ═══════════════════════════════════════════════
@@ -1858,10 +1895,28 @@ async def agent_log_ingest(req: Request):
         "action_status": body.get("action_status", "success"),
         **(details or {}),
     })
-    # 实时推送给前端
+    # 更新 AgentRegistry 中的 Agent 状态（悬浮框用）
+    action_type = body.get("action", "")
+    action_status = body.get("action_status", "")
+    agent = AgentRegistry.get(agent_id)
+    if agent:
+        if event == "decide":
+            agent.status = "decided"
+        elif event == "act":
+            if action_type in ("send_message", "broadcast"):
+                agent.status = "messaged" if action_status == "success" else "send_failed"
+            else:
+                agent.status = "analyzed" if action_status == "success" else action_type
+
+    # 实时推送给前端（日志 + 状态更新）
     if _ws_clients:
         asyncio.create_task(_ws_broadcast({
             "type": "agent_log", "data": _agent_logs[-1]
+        }))
+        # 同步推送 Agent 状态更新
+        agents_data = [a.get_status() for a in AgentRegistry.list_all()]
+        asyncio.create_task(_ws_broadcast({
+            "type": "agent_status", "data": agents_data
         }))
     return {"status": "ok", "total_logs": len(_agent_logs)}
 

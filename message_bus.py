@@ -24,7 +24,7 @@ import uvicorn
 import requests
 
 from agent_network.logger import get_logger, LogLevel
-from agent_network.event_bus import PacketRecorder
+from agent_network.event_bus import PacketRecorder, HEADER_OVERHEAD
 
 app = FastAPI(title="Agent Message Bus")
 
@@ -42,6 +42,9 @@ class RelayMessage(BaseModel):
     to: str
     content: str
     reasoning: str = ""
+    allowed: Optional[list] = None  # broadcast 时的通信权限过滤
+    channel_id: str = ""   # 信道标识（来自 topology edge）
+    talk: str = ""         # 会话/对话 ID（仿真启动时生成）
 
 
 # Agent 注册表: {agent_id: "http://host:port"}
@@ -57,6 +60,15 @@ stats = {
 @app.get("/health")
 async def health():
     return {"status": "ok", "agents": len(agent_registry)}
+
+
+@app.post("/session/start")
+async def session_start(session_dir: str = ""):
+    """由 server 调用，复用已创建的 session 文件夹"""
+    if not session_dir:
+        return {"status": "error", "detail": "session_dir required"}
+    logger.set_session_dir(session_dir)
+    return {"session_dir": logger._session_dir, "status": "ok"}
 
 
 @app.post("/register")
@@ -98,11 +110,22 @@ async def relay(msg: RelayMessage, request: Request):
     )
 
     # ── 记录所有通信报文（日志） ──
+    payload_bytes = len(msg.content.encode('utf-8')) + len(msg.reasoning.encode('utf-8'))
     logger.agent_message(
         from_id=msg.from_id, to=msg.to,
         content=msg.content, reasoning=msg.reasoning,
         latency_ms=(time.time() - relay_start) * 1000,
         status="relaying",
+        # 网络层字段
+        src_ip=client_ip, src_port=0,
+        dst_ip="bus", dst_port=9000,
+        protocol="TCP/HTTP",
+        packet_len=HEADER_OVERHEAD + payload_bytes,
+        header_len=HEADER_OVERHEAD, payload_len=payload_bytes,
+        tcp_flags="PSH,ACK",
+        channel_id=msg.channel_id,
+        message_type="relay",
+        talk=msg.talk,
     )
 
     # ── 日志收集器转发 ──
@@ -134,17 +157,25 @@ async def relay(msg: RelayMessage, request: Request):
 
     # 广播模式
     if msg.to == "broadcast":
+        allowed_set = set(a.lower() for a in (msg.allowed or []))
         results = {}
-        for aid, url in agent_registry.items():
-            if aid != msg.from_id:
-                try:
-                    resp = requests.post(f"{url}/message", json={
-                        "from_id": msg.from_id, "from_name": msg.from_name,
-                        "content": msg.content,
-                    }, timeout=5)
-                    results[aid] = resp.status_code
-                except Exception as e:
-                    results[aid] = str(e)
+        for aid, url in list(agent_registry.items()):
+            # 跳过非 agent_id 的 key（name 别名等）
+            if not url.startswith("http"):
+                continue
+            if aid == msg.from_id:
+                continue
+            # 通信权限过滤
+            if allowed_set and aid.lower() not in allowed_set:
+                continue
+            try:
+                resp = requests.post(f"{url}/message", json={
+                    "from_id": msg.from_id, "from_name": msg.from_name,
+                    "content": msg.content,
+                }, timeout=5)
+                results[aid] = resp.status_code
+            except Exception as e:
+                results[aid] = str(e)
         for aid, status_code in results.items():
             PacketRecorder.record(
                 direction="outbound", src_ip="bus", dst_ip=f"agent:{aid}",
@@ -155,8 +186,15 @@ async def relay(msg: RelayMessage, request: Request):
             )
         logger.agent_message(from_id=msg.from_id, to="broadcast",
                              content=msg.content, reasoning=msg.reasoning,
-                             status="broadcast", latency_ms=(time.time()-relay_start)*1000,
-                             targets=len(results))
+                             status=f"broadcast({len(results)})", latency_ms=(time.time()-relay_start)*1000,
+                             src_ip="bus", src_port=9000,
+                             dst_ip="broadcast", dst_port=0,
+                             protocol="HTTP/1.1",
+                             packet_len=0, header_len=HEADER_OVERHEAD, payload_len=0,
+                             tcp_flags="PSH,ACK",
+                             channel_id=msg.channel_id,
+                             message_type="broadcast",
+                             talk=msg.talk)
         return {"broadcast": True, "targets": len(results), "results": results}
 
     # 单播 — 先精确匹配ID，再匹配名称，再模糊匹配
@@ -192,7 +230,17 @@ async def relay(msg: RelayMessage, request: Request):
         )
         logger.agent_message(from_id=msg.from_id, to=msg.to,
                              content=msg.content, reasoning=msg.reasoning,
-                             latency_ms=latency, status=f"delivered({resp.status_code})")
+                             latency_ms=latency, status=f"delivered({resp.status_code})",
+                             # 网络层字段
+                             src_ip="bus", src_port=9000,
+                             dst_ip=target_url, dst_port=0,
+                             protocol="TCP/HTTP",
+                             packet_len=HEADER_OVERHEAD + payload_bytes,
+                             header_len=HEADER_OVERHEAD, payload_len=payload_bytes,
+                             tcp_flags="PSH,ACK",
+                             channel_id=msg.channel_id,
+                             message_type="relay",
+                             talk=msg.talk)
         return {"relayed": True, "to": msg.to, "status": resp.status_code, "latency_ms": round(latency, 1)}
     except Exception as e:
         latency = (time.time() - relay_start) * 1000

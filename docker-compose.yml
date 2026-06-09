@@ -22,6 +22,7 @@ x-claude: &claude
     LLM_API_KEY: ${ANTHROPIC_API_KEY}
     LLM_MODEL: deepseek-chat
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ANTHROPIC_BASE_URL: https://api.deepseek.com/anthropic
   restart: unless-stopped
   networks: [an]
 
@@ -36,6 +37,7 @@ x-openclaw: &openclaw
     LLM_API_BASE: https://api.deepseek.com/v1
     LLM_PROVIDER: openai
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ANTHROPIC_BASE_URL: https://api.deepseek.com/anthropic
   restart: unless-stopped
   networks: [an]
 
@@ -44,6 +46,7 @@ services:
     build: { context: ., dockerfile: Dockerfile.message-bus }
     container_name: bus
     ports: ["9000:9000"]
+    volumes: ["./data/logs:/app/data/logs"]
     environment: { MESSAGE_BUS_PORT: "9000" }
     restart: unless-stopped
     networks: [an]
@@ -52,7 +55,7 @@ services:
     build: { context: ., dockerfile: Dockerfile.server }
     container_name: srv
     ports: ["8000:8000"]
-    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "./data/logs:/app/data/logs"]
     environment:
       SERVER_PORT: "8000"
       MESSAGE_BUS_URL: http://bus:9000
