@@ -1,0 +1,134 @@
+{
+  "container_instances": {
+    "CMDR_01": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "numpy==1.24.3",
+        "requests==2.31.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "initialize_minesweeper_map",
+          "endpoint": "http://simulation-env/api/skills/init_map",
+          "description": "仅限指挥官 CMDR_01 在第 0 轮初始化调用，生成 9x9 棋盘及 10 个地雷。"
+        },
+        {
+          "skill_name": "query_game_status",
+          "endpoint": "http://simulation-env/api/skills/status",
+          "description": "全局状态审计：查询当前 9x9 地图的整体覆盖率、累计发现的地雷以及全局 Round 进度。"
+        }
+      ]
+    },
+    "SOLDIER_01": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": [
+        "requests==2.31.0"
+      ],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_02": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_03": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_04": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_05": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_06": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_07": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_08": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    },
+    "SOLDIER_09": {
+      "runtime_engine": "docker",
+      "docker_image": "python:3.10-slim",
+      "pip_packages": ["requests==2.31.0"],
+      "skill_bindings": [
+        {
+          "skill_name": "move_and_reconnaissance",
+          "endpoint": "http://simulation-env/api/skills/recon",
+          "description": "探雷兵执行移动与探雷。接收当前的 current_round 确保时序同步。踩雷不死，仅返回雷区情报。"
+        }
+      ]
+    }
+  }
+}

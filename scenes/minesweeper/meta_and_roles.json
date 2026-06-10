@@ -1,0 +1,26 @@
+{
+  "scenario_metadata": {
+    "title": "基于多Agent星状协同的分布式扫雷博弈仿真",
+    "global_rules": "【全局轮数(Round)定义】：本仿真采用并发异步时钟步机制。1个Round定义为：指挥官发出调度指令且小兵群体完成一轮并发侦察技能调用的完整生命周期。每个Round结束时，系统结算一次棋盘状态。【通信与生存规则】：在一个 9x9 的共享虚拟棋盘上随机分布着 10 枚地雷。指挥官拥有全局盲图视角的决策权，小兵（共9个）无全局视角。小兵在执行侦察技能（Move & Recon）时若踩到地雷，不会死亡或被清除，而是将其标记为‘已知雷区’并如实向指挥官报告，小兵可继续参与下一轮侦察。禁止小兵之间直接越权通信，所有发现必须逐级上报给指挥官。",
+    "max_rounds": 35,
+    "stalemate_rounds": 3
+  },
+  "roles": {
+    "CMDR_01": {
+      "name": "扫雷行动最高指挥官",
+      "model_backbone": "claudecode",
+      "identity": "扫雷行动的唯一核心大脑。掌握全局战术白板。需要根据小兵在当前Round反馈的局部‘安全雷数’或‘确凿雷区’信息绘制逻辑盲区，并在下一Round向麾下9个探雷兵下达‘移动至指定坐标侦察’的宏观指令。",
+      "core_goal": "在 35 个全局 Round 内，通过合理调度小兵，将 9x9 棋盘中除了 10 枚地雷外的其余 71 个安全格子全部安全探测完毕，尽可能减少小兵误踩雷的次数（提高排雷效率）。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "SOLDIER_01": { "name": "探雷侦察兵-01", "model_backbone": "openclaw", "identity": "前线执行单元，听从 CMDR_01 指令移动，在每个 Round 的执行窗口内上报踩雷或数字结果。具有无限存活能力，遇到雷区仅做记录汇报。", "core_goal": "每 Round 响应指挥，执行移动指令并准确汇报坐标状态。", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_02": { "name": "探雷侦察兵-02", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_03": { "name": "探雷侦察兵-03", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_04": { "name": "探雷侦察兵-04", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_05": { "name": "探雷侦察兵-05", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_06": { "name": "探雷侦察兵-06", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_07": { "name": "探雷侦察兵-07", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_08": { "name": "探雷侦察兵-08", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" },
+    "SOLDIER_09": { "name": "探雷侦察兵-09", "model_backbone": "openclaw", "identity": "前线执行单元...", "core_goal": "执行移动指令并汇报...", "primary_interaction_paradigm": "INTERNAL_COLLABORATION" }
+  }
+}

@@ -56,6 +56,10 @@ python scenes/scenario.py \
 |------|------|------|
 | `title` | string | 剧本名称 |
 | `global_rules` | string | 仿真世界规则与约束（周期、资源上限、法规限制等） |
+| `max_rounds` | int | 硬上限：最大仿真轮数（3-30），到达后强制终止 |
+| `stalemate_rounds` | int | 僵局检测：连续无消息轮数阈值（2-10），达到后判定僵局终止 |
+
+> 终止逻辑由 `server.py` 的 `_launch_containers()` 执行。每轮结束后统计消息发送量，若连续 `stalemate_rounds` 轮无 Agent 发送消息则判定僵局；到达 `max_rounds` 则强制终止。返回结果中 `stop_reason` 字段记录终止原因（`hard_limit` / `stalemate_N_silent_rounds`）。
 
 #### `roles`
 

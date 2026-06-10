@@ -130,6 +130,7 @@ service_state = {
 _current_map: Optional[Dict[str, Any]] = None  # 当前地形地图 (TerrainMap.to_dict())
 _current_map_obj: Optional[Any] = None           # TerrainMap 实例 (用于寻路等操作)
 _current_relationships: List[Dict[str, Any]] = []  # 当前关系链
+_termination_config: Dict[str, int] = {"max_rounds": 10, "stalemate_rounds": 3}  # 终止条件默认值
 
 
 # ═══════════════════════════════════════════════
@@ -641,6 +642,8 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     workflow_steps = scene_def.workflow if scene_def.workflow else []
     MAX_ROUNDS = 20
     results_log = []
+    silent_rounds = 0
+    stop_reason = "hard_limit"
 
     for round_num in range(MAX_ROUNDS):
         current_turn = round_num + 1
@@ -673,6 +676,22 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         }
         round_result = runtime.run_round(context)
         results_log.append(round_result)
+
+        # 僵局检测：本轮是否有实际消息产生
+        decisions = round_result.get("decisions", [])
+        messages_sent = sum(
+            1 for d in decisions
+            if d.get("type") in ("send_message", "broadcast")
+        )
+        if messages_sent == 0:
+            silent_rounds += 1
+        else:
+            silent_rounds = 0
+
+        if silent_rounds >= stalemate_threshold:
+            stop_reason = f"stalemate_{stalemate_threshold}_silent_rounds"
+            break
+
         # 每轮后更新 Agent 位置（基于决策结果的模拟移动）
         for a in AgentRegistry.list_all():
             if a.status == "running":
@@ -681,9 +700,12 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
                 a.x = max(10, min(390, a.x or 200))
                 a.y = max(10, min(390, a.y or 200))
         time.sleep(0.3)
+    else:
+        stop_reason = "hard_limit"
 
     _current_relationships = scene_def.workflow
     registry_agents = [a.get_status() for a in AgentRegistry.list_all()]
+    actual_rounds = len(results_log)
 
     return {
         "simulation_name": scene_def.scene_name,
@@ -691,6 +713,9 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         "agents": registry_agents,
         "agent_stats": AgentRegistry.get_stats(),
         "packet_stats": PacketRecorder.get_stats(),
+        "max_rounds": max_rounds,
+        "rounds": actual_rounds,
+        "stop_reason": stop_reason,
         "rounds": MAX_ROUNDS,
         "results_log": results_log,
         "relationships": scene_def.workflow,

@@ -1,0 +1,25 @@
+{
+  "global_topology_type": "STAR",
+  "sub_networks": [
+    {
+      "sub_id": "command_star_network",
+      "topology_type": "STAR",
+      "description": "星状网络：小兵探测到雷区或数字安全区后，通过专属 VLAN 管道无损上报给指挥官，小兵即使多次踩雷其通信链路依然保持畅通。",
+      "nodes": [
+        "CMDR_01", "SOLDIER_01", "SOLDIER_02", "SOLDIER_03", "SOLDIER_04", 
+        "SOLDIER_05", "SOLDIER_06", "SOLDIER_07", "SOLDIER_08", "SOLDIER_09"
+      ],
+      "edges": [
+        { "source": "CMDR_01", "target": "SOLDIER_01", "paradigm": "COLLABORATION", "channel_id": "radio_ch_01" },
+        { "source": "CMDR_01", "target": "SOLDIER_02", "paradigm": "COLLABORATION", "channel_id": "radio_ch_02" },
+        { "source": "CMDR_01", "target": "SOLDIER_03", "paradigm": "COLLABORATION", "channel_id": "radio_ch_03" },
+        { "source": "CMDR_01", "target": "SOLDIER_04", "paradigm": "COLLABORATION", "channel_id": "radio_ch_04" },
+        { "source": "CMDR_01", "target": "SOLDIER_05", "paradigm": "COLLABORATION", "channel_id": "radio_ch_05" },
+        { "source": "CMDR_01", "target": "SOLDIER_06", "paradigm": "COLLABORATION", "channel_id": "radio_ch_06" },
+        { "source": "CMDR_01", "target": "SOLDIER_07", "paradigm": "COLLABORATION", "channel_id": "radio_ch_07" },
+        { "source": "CMDR_01", "target": "SOLDIER_08", "paradigm": "COLLABORATION", "channel_id": "radio_ch_08" },
+        { "source": "CMDR_01", "target": "SOLDIER_09", "paradigm": "COLLABORATION", "channel_id": "radio_ch_09" }
+      ]
+    }
+  ]
+}

@@ -34,6 +34,7 @@ SYSTEM_PROMPT = """
    - 函数命名用英文 snake_case，docstring 用中文写清楚用途
    - 字符串内缩进使用 4 空格，确保从 JSON 解析出来后是合法 Python 代码
 7. 动机可量化收敛：角色的核心目标必须具体且带有时限或量化指标（例如：预算结余>50%），严禁日常社交闲聊。
+8. 终止条件嵌入：scenario_metadata 必须包含 max_rounds（硬上限，3-30）和 stalemate_rounds（僵局检测阈值，2-10）。max_rounds 根据角色数量和剧本复杂度合理设定（10 角色左右建议 8-12 轮），stalemate_rounds 建议设为 3-5 轮。
 """
 
 # =====================================================================
@@ -55,9 +56,11 @@ RESPONSE_SCHEMA = {
                             "type": "object",
                             "properties": {
                                 "title": {"type": "string", "description": "剧本名称"},
-                                "global_rules": {"type": "string", "description": "物理世界规则与仿真时限约束"}
+                                "global_rules": {"type": "string", "description": "物理世界规则与仿真时限约束"},
+                                "max_rounds": {"type": "integer", "description": "硬上限：最大仿真轮数，到达后强制终止", "minimum": 3, "maximum": 30},
+                                "stalemate_rounds": {"type": "integer", "description": "僵局检测：连续无消息轮数阈值，达到后判定僵局终止", "minimum": 2, "maximum": 10}
                             },
-                            "required": ["title", "global_rules"],
+                            "required": ["title", "global_rules", "max_rounds", "stalemate_rounds"],
                             "additionalProperties": False
                         },
                         "roles": {
