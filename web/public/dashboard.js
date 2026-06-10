@@ -16,12 +16,22 @@ const container = document.getElementById('log-entries');
 const autoscroll = document.getElementById('log-autoscroll')?.checked;
 if (!container) return;
 const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
+// 保存已展开的日志索引（通过匹配文本内容）
+const expandedTexts = new Set();
+container.querySelectorAll('.log-entry.expanded').forEach(el => {
+  expandedTexts.add(el.querySelector('.ev')?.textContent + '|' + el.querySelector('.ts')?.textContent);
+});
 let entries = logBuffer.filter(e => checked.includes(e.field));
 const countEl = document.getElementById('log-count');
 if (countEl) countEl.textContent = entries.length;
 container.innerHTML = entries.slice(-200).map(e =>
 '<div class=log-entry onclick="this.classList.toggle(\'expanded\')"><span class=ts>' + e.timestamp + '</span> <span class="lv lv-' + e.field + '">' + e.field + '</span> <span class=ev>' + e.event + '</span></div>'
 ).join('') || '<div class=log-entry><span class=ts>--</span> <span class=ev>无日志</span></div>';
+// 恢复已展开的日志条目
+container.querySelectorAll('.log-entry').forEach(el => {
+  const key = el.querySelector('.ev')?.textContent + '|' + el.querySelector('.ts')?.textContent;
+  if (expandedTexts.has(key)) el.classList.add('expanded');
+});
 if (autoscroll && wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 function clearLogs() { logBuffer = []; renderLogs(); }
@@ -109,6 +119,7 @@ if (msg.type === 'agent_log' && msg.data) {
     logEntry('agent', msgText, ts);
     _lastLogCount++; // 同步计数，避免 batch all 响应重复渲染
     return;
+    }
 // ── Agent 状态实时更新 ──
 if (msg.type === 'agent_status' && msg.data) {
     msg.data.forEach(s => {

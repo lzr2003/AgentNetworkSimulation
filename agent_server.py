@@ -37,7 +37,6 @@ import requests
 
 from agent_network.agent import Agent
 from agent_network.comm import RemoteBus
-from agent_network.logger import get_logger
 from agent_network.event_bus import PacketRecorder
 
 
@@ -133,10 +132,8 @@ _current_talk: str = ""        # 当前会话/对话 ID（仿真启动时生成�
 _effective_id: str = AGENT_ID     # 当前场景身份（由 /decide 注入）
 _effective_name: str = AGENT_NAME
 
-_agent_logger = get_logger()
-
 def _log_agent(event: str, detail: str, **kw):
-    """Agent 本地日志 + 上报到主服务器"""
+    """Agent 日志上报到主服务器"""
     timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     effective_id = kw.get("from_id", AGENT_ID)
     effective_name = kw.get("from_name", AGENT_NAME)
@@ -147,13 +144,11 @@ def _log_agent(event: str, detail: str, **kw):
         "detail": detail,
         "timestamp": timestamp,
         "from_agent": effective_id,
-        "to_agent": kw.get("target", kw.get("to", "")),
-        "action": kw.get("action_type", event),
+        "to_agent": kw.get("target", kw.get("to", "")) if kw.get("action_type") in ("send_message", "broadcast") else "",
+        "action": (kw.get("target") or kw.get("to")) if kw.get("action_type") == "execute_skill" else "send_message" if kw.get("action_type") == "broadcast" else kw.get("action_type", event),
         "action_status": kw.get("status", "success"),
-        "details": kw or {},
+        "details": {k: v for k, v in kw.items() if k not in ("action_type", "target")},
     }
-    # 本地记录
-    _agent_logger.system(event, detail, agent_id=AGENT_ID, details=payload)
     # 上报到主服务器
     try:
         requests.post(f"{SERVER_URL}/api/logs/agent", json=payload, timeout=2)
@@ -324,8 +319,10 @@ async def act():
 
     # 如果是发送消息，通过 RemoteBus 转发（日志在发送结果确定后记录）
     if action_type in ("send_message", "broadcast"):
-        # 检查通信权限
-        if action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
+        # target=0.0.0.0 → 广播全员
+        is_broadcast = (action_target == "0.0.0.0" or action_type == "broadcast")
+        # 检查通信权限（广播跳过权限检查）
+        if not is_broadcast and action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
             result["relayed"] = False
             _log_agent("act", f"无通信权限: {action_target}（允许: {', '.join(sorted(_allowed_targets))}）",
                        action_type=action_type, target=action_target, status="failed")
@@ -335,11 +332,11 @@ async def act():
                 # 从信道映射中查找当前 Agent→目标 的 channel_id
                 chan_id = _channel_map.get(f"{_effective_id}->{action_target}", "") or \
                           _channel_map.get(f"{_effective_id.lower()}->{action_target.lower()}", "")
-                if action_type == "send_message":
-                    ok = await asyncio.to_thread(comm.send, _effective_id, _effective_name, action_target, action_content,
+                if is_broadcast:
+                    ok = await asyncio.to_thread(comm.broadcast, _effective_id, _effective_name, action_content, _allowed_targets,
                                                  chan_id, _current_talk)
                 else:
-                    ok = await asyncio.to_thread(comm.broadcast, _effective_id, _effective_name, action_content, _allowed_targets,
+                    ok = await asyncio.to_thread(comm.send, _effective_id, _effective_name, action_target, action_content,
                                                  chan_id, _current_talk)
                 latency = (time.time() - relay_start) * 1000
                 result["relayed"] = ok
@@ -348,7 +345,7 @@ async def act():
                            action_type=action_type, target=action_target,
                            content=action_content, status="success" if ok else "failed")
                 # 记录出站报文
-                destination = action_target if action_type == "send_message" else "broadcast"
+                destination = "broadcast" if is_broadcast else action_target
                 PacketRecorder.record_outbound(
                     agent_id=_effective_id, dst_ip=f"bus", dst_port=9000,
                     method="POST", path="/relay", status=200 if ok else 0,

@@ -22,7 +22,7 @@ from .llm_parser import get_api_config
 @dataclass
 class Action:
     """Agent 决策后的动作"""
-    type: str  # "send_message" | "search" | "analyze" | "wait" | "broadcast" | "plan" | "move_to"
+    type: str  # "send_message" | "search" | "analyze" | "wait" | "plan" | "move_to"
     target: str = ""       # 消息目标 agent_id
     content: str = ""      # 消息/动作内容
     reasoning: str = ""    # Agent 的推理过程
@@ -44,8 +44,7 @@ class Action:
 DEFAULT_SYSTEM_PROMPT = """根据你的身份、目标和可用行动，在仿真场景中做出合理决策。
 
 可用动作：
-- send_message(target_agent_id, content): 向特定 Agent 发送消息（target_agent_id 必须用已知 Agent 列表中的 agent_id，如 "role_b"）
-- broadcast(content): 向所有 Agent 广播消息
+- send_message(target, content): 向 Agent 发送消息。target 填 agent_id（如 "ceo"），填 "0.0.0.0" 表示向全体 Agent 广播
 - analyze(data): 分析当前局势
 - plan(objective): 制定行动计划
 - wait: 等待更多信息或观望
@@ -204,7 +203,7 @@ class Brain:
 ```json
 {{
   "reasoning": "你的推理过程（一句话）",
-  "action": "send_message|broadcast|execute_skill|analyze|plan|wait",
+  "action": "send_message|execute_skill|analyze|plan|wait",
   "target": "目标 Agent 的 agent_id（send_message 时必填）或技能名（execute_skill 时填技能名）",
   "content": "消息内容、技能参数或动作描述"
 }}
@@ -213,6 +212,7 @@ class Brain:
 行动指南:
 - 这是第{self.turn}轮，必须立即行动！优先 send_message 回复收件箱中的直接消息
 - target 必须填 agent_id（如 ceo、cto），不能填中文名
+- 向全体 Agent 广播消息时，target 填 "0.0.0.0"
 - 消息内容要具体、有信息量，至少50字"""
         if skills_text:
             prompt += "\n- 你有可用技能！合理使用 execute_skill 来完成任务（如 allocate_budget、audit_expense 等）"

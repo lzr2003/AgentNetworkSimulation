@@ -640,7 +640,8 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
 
     # ── 运行仿真轮次: 广播模式 ──
     workflow_steps = scene_def.workflow if scene_def.workflow else []
-    MAX_ROUNDS = 20
+    MAX_ROUNDS = _termination_config.get("max_rounds", 20)
+    stalemate_threshold = _termination_config.get("stalemate_rounds", 3)
     results_log = []
     silent_rounds = 0
     stop_reason = "hard_limit"
@@ -681,7 +682,7 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         decisions = round_result.get("decisions", [])
         messages_sent = sum(
             1 for d in decisions
-            if d.get("type") in ("send_message", "broadcast")
+            if d.get("type") in ("send_message", "broadcast", "execute_skill")
         )
         if messages_sent == 0:
             silent_rounds += 1
@@ -707,16 +708,20 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     registry_agents = [a.get_status() for a in AgentRegistry.list_all()]
     actual_rounds = len(results_log)
 
+    # 写入仿真完成日志
+    logger.system("simulation_complete",
+        f"仿真完成: {scene_def.scene_name} | {actual_rounds}轮 | {len(registry_agents)} Agent | {stop_reason}",
+        details={"scene": scene_def.scene_name, "rounds": actual_rounds, "agent_count": len(registry_agents), "stop_reason": stop_reason})
+
     return {
         "simulation_name": scene_def.scene_name,
         "duration_seconds": round(len(results_log) * 1.5 if results_log else 1.5, 2),
         "agents": registry_agents,
         "agent_stats": AgentRegistry.get_stats(),
         "packet_stats": PacketRecorder.get_stats(),
-        "max_rounds": max_rounds,
+        "max_rounds": MAX_ROUNDS,
         "rounds": actual_rounds,
         "stop_reason": stop_reason,
-        "rounds": MAX_ROUNDS,
         "results_log": results_log,
         "relationships": scene_def.workflow,
         "container_mode": "pool",
@@ -752,7 +757,7 @@ def _build_scene_from_script_json(sj: Dict[str, Any]) -> SceneDefinition:
                 "core_goal": core_goal,
                 "hidden_secret": hidden_secret,
                 "initial_assets": initial_assets,
-                "action_space": action_space,
+                "action_space": ["send_message"] + action_space,
                 "background_rules": bg,  # scene system prompt
                 "backend": backend,
             },
@@ -834,14 +839,14 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
                 "core_goal": role.get("core_goal", ""),
                 "hidden_secret": role.get("hidden_secret", ""),      # 从 JSON 读取，不再硬编码空值
                 "initial_assets": role.get("initial_assets", {}),    # 从 JSON 读取，不再硬编码空值
-                "action_space": skills,
+                "action_space": ["send_message"] + skills,
                 "background_rules": bg,
                 "backend": backend,
                 "interaction_paradigm": paradigm,
                 "paradigm_hint": paradigm_hints.get(paradigm, ""),
                 "pip_packages": instance.get("pip_packages", []),
                 "runtime_engine": instance.get("runtime_engine", ""),
-                "skills_list": skills_info,
+                "skills_list": [s for s in skills_info if s["name"] in skills],
             },
         )
         agents.append(agent)

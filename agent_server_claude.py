@@ -73,10 +73,10 @@ def _log_agent(event: str, detail: str, **kw):
             "event": event, "detail": detail,
             "timestamp": timestamp,
             "from_agent": effective_id,
-            "to_agent": kw.get("target", kw.get("to", "")),
-            "action": kw.get("action_type", event),
+            "to_agent": kw.get("target", kw.get("to", "")) if kw.get("action_type") in ("send_message", "broadcast") else "",
+            "action": (kw.get("target") or kw.get("to")) if kw.get("action_type") == "execute_skill" else "send_message" if kw.get("action_type") == "broadcast" else kw.get("action_type", event),
             "action_status": kw.get("status", "success"),
-            "details": kw or {},
+            "details": {k: v for k, v in kw.items() if k not in ("action_type", "target")},
         }, timeout=2)
     except Exception:
         pass
@@ -167,11 +167,12 @@ def _build_prompt(inbox_msgs: list, context: dict = None) -> str:
 ## 指令
 基于以上信息，决定你这一轮要做什么。用 JSON 回复（只输出 JSON）：
 ```json
-{{"reasoning": "推理", "action": "send_message|broadcast|execute_skill|wait", "target": "目标agent_id或技能名", "content": "消息内容或技能参数"}}
+{{"reasoning": "推理", "action": "send_message|execute_skill|wait", "target": "目标agent_id或技能名", "content": "消息内容或技能参数"}}
 ```
 重要规则:
 - 必须立即采取具体行动！如果收件箱有直接发给你的消息，本轮必须回复
 - target 必须用 agent_id（如 ceo、cto），不能用中文名
+- 向全体 Agent 广播消息时，target 填 "0.0.0.0"
 - 有技能时积极使用 execute_skill
 - 用中文回复"""
 
@@ -274,17 +275,19 @@ async def act():
     result: Dict[str, Any] = {"action": last_action}
 
     if action_type in ("send_message", "broadcast"):
-        # 检查通信权限
-        if action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
+        # target=0.0.0.0 → 广播全员
+        is_broadcast = (action_target == "0.0.0.0" or action_type == "broadcast")
+        # 检查通信权限（广播跳过权限检查）
+        if not is_broadcast and action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
             result["relayed"] = False
             _log_agent("act", f"无通信权限: {action_target}（允许: {', '.join(sorted(_allowed_targets))}）",
                        action_type=action_type, target=action_target, status="failed")
         else:
             try:
-                if action_type == "send_message":
-                    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name, action_target, action_content)
-                else:
+                if is_broadcast:
                     ok = await asyncio.to_thread(comm.broadcast, _current_effective_id, _current_effective_name, action_content, _allowed_targets)
+                else:
+                    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name, action_target, action_content)
                 result["relayed"] = ok
                 _log_agent("act", action_content or action_type,
                            action_type=action_type, target=action_target,
@@ -298,8 +301,8 @@ async def act():
                 try:
                     requests.post(f"{PACKET_MONITOR_URL}/api/packets/ingest", json={
                         "from_id": _current_effective_id, "from_name": _current_effective_name,
-                        "to": action_target if action_type == "send_message" else "broadcast",
-                        "content": action_content, "type": action_type,
+                        "to": "broadcast" if is_broadcast else action_target,
+                        "content": action_content, "type": "send_message",
                         "direction": "outbound",
                     }, timeout=1)
                 except Exception:

@@ -68,7 +68,7 @@ _allowed_targets: set = set()  # 通信权限矩阵
 _TOOLS = [
     {
         "name": "send_message",
-        "description": "向另一个 Agent 发送消息。target 必须用 agent_id（如 role_a），不是中文名。",
+        "description": "向 Agent 发送消息。target 填 agent_id（如 ceo），填 0.0.0.0 表示向全体 Agent 广播。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -77,18 +77,6 @@ _TOOLS = [
                 "reasoning": {"type": "string", "description": "发送此消息的推理原因"},
             },
             "required": ["target", "content"],
-        },
-    },
-    {
-        "name": "broadcast",
-        "description": "向所有 Agent 广播消息。",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "content": {"type": "string", "description": "广播内容"},
-                "reasoning": {"type": "string", "description": "广播的推理原因"},
-            },
-            "required": ["content"],
         },
     },
     {
@@ -125,6 +113,19 @@ _TOOLS = [
             "required": ["reason"],
         },
     },
+    {
+        "name": "execute_skill",
+        "description": "执行一个可用技能。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "skill_name": {"type": "string", "description": "技能名称"},
+                "params": {"type": "object", "description": "技能参数"},
+                "reasoning": {"type": "string", "description": "执行理由"},
+            },
+            "required": ["skill_name"],
+        },
+    },
 ]
 
 
@@ -139,10 +140,10 @@ def _log_agent(event: str, detail: str, **kw):
             "event": event, "detail": detail,
             "timestamp": timestamp,
             "from_agent": effective_id,
-            "to_agent": kw.get("target", kw.get("to", "")),
-            "action": kw.get("action_type", event),
+            "to_agent": kw.get("target", kw.get("to", "")) if kw.get("action_type") in ("send_message", "broadcast") else "",
+            "action": (kw.get("target") or kw.get("to")) if kw.get("action_type") == "execute_skill" else "send_message" if kw.get("action_type") == "broadcast" else kw.get("action_type", event),
             "action_status": kw.get("status", "success"),
-            "details": kw or {},
+            "details": {k: v for k, v in kw.items() if k not in ("action_type", "target")},
         }, timeout=2)
     except Exception:
         pass
@@ -258,13 +259,6 @@ def _call_anthropic_with_tools(system_prompt: str, user_message: str) -> dict:
                 "content": tool_input.get("content", ""),
                 "reasoning": tool_input.get("reasoning", ""),
             }
-        elif tool_name == "broadcast":
-            return {
-                "action": "broadcast",
-                "target": "broadcast",
-                "content": tool_input.get("content", ""),
-                "reasoning": tool_input.get("reasoning", ""),
-            }
         elif tool_name == "analyze_situation":
             return {
                 "action": "analyze",
@@ -285,6 +279,13 @@ def _call_anthropic_with_tools(system_prompt: str, user_message: str) -> dict:
                 "target": "",
                 "content": tool_input.get("reason", "waiting"),
                 "reasoning": tool_input.get("reason", "waiting"),
+            }
+        elif tool_name == "execute_skill":
+            return {
+                "action": "execute_skill",
+                "target": tool_input.get("skill_name", ""),
+                "content": tool_input.get("params", {}),
+                "reasoning": tool_input.get("reasoning", ""),
             }
 
     # Fallback: extract text
@@ -386,17 +387,19 @@ async def act():
     result: Dict[str, Any] = {"action": last_action, "backend": "openclaw"}
 
     if action_type in ("send_message", "broadcast"):
-        # 检查通信权限
-        if action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
+        # target=0.0.0.0 → 广播全员
+        is_broadcast = (action_target == "0.0.0.0" or action_type == "broadcast")
+        # 检查通信权限（广播跳过权限检查）
+        if not is_broadcast and action_type == "send_message" and _allowed_targets and action_target not in _allowed_targets:
             result["relayed"] = False
             _log_agent("act", f"无通信权限: {action_target}（允许: {', '.join(sorted(_allowed_targets))}）",
                        action_type=action_type, target=action_target, status="failed")
         else:
             try:
-                if action_type == "send_message":
-                    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name, action_target, action_content)
-                else:
+                if is_broadcast:
                     ok = await asyncio.to_thread(comm.broadcast, _current_effective_id, _current_effective_name, action_content, _allowed_targets)
+                else:
+                    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name, action_target, action_content)
                 result["relayed"] = ok
                 _log_agent("act", action_content or action_type,
                            action_type=action_type, target=action_target,

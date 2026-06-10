@@ -94,12 +94,11 @@ class SimulationLogger:
     # ── 文件持久化 ──
 
     def _init_file(self):
-        """初始化日志文件（按日期命名，JSON Lines 格式）"""
+        """初始化日志目录（文件路径在 start_session / set_session_dir 时设置）"""
         if not self._log_dir:
             return
         os.makedirs(self._log_dir, exist_ok=True)
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        self._file_path = os.path.join(self._log_dir, f"{self.name}_{date_str}.jsonl")
+        # 不再设置日期回退文件 — 所有日志必须在 session 内写入 global.jsonl
 
     def start_session(self, scene_name: str):
         """开始新的仿真会话 — 创建 {剧本名}_{时间戳}/ 文件夹"""
@@ -145,6 +144,8 @@ class SimulationLogger:
 
     def _write_file(self, entry: Dict):
         """追加日志到对应文件 — 全局/通信/行为三路写入"""
+        if not self._file_path:
+            return  # session 未启动，仅保留在内存缓冲区
         event = entry.get("event", "")
         # 全局日志：全部写入
         self._append_file(self._file_path, entry)
