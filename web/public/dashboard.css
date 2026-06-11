@@ -72,11 +72,11 @@ body{font-family:'Inter','IBM Plex Sans',system-ui,sans-serif;background:var(--b
 .log-dropdown.open .log-dropdown-btn{border-color:var(--gray)}
 .log-dropdown-menu .chk{font-size:0.7rem;font-family:inherit;color:var(--text);padding:2px 0}
 /* Float panel — scene viz overlay */
-.float-panel{position:absolute;top:8px;left:8px;z-index:20;background:rgba(247,244,238,0.96);border:1px solid var(--border);border-radius:4px;min-width:200px;max-width:280px;box-shadow:0 1px 4px rgba(0,0,0,0.08);overflow:hidden}
-.float-panel.collapsed{min-width:auto}
+.float-panel{position:absolute;top:8px;left:8px;z-index:20;background:rgba(247,244,238,0.96);border:1px solid var(--border);border-radius:4px;width:240px;height:290px;min-width:180px;min-height:120px;max-width:450px;max-height:600px;box-shadow:0 1px 4px rgba(0,0,0,0.08);overflow:hidden;resize:both;display:flex;flex-direction:column}
+.float-panel.collapsed{min-width:auto;min-height:auto;resize:none}
 .float-panel.collapsed iframe{display:none}
-.fp-header{display:flex;align-items:center;gap:4px;padding:4px 6px;border-bottom:1px solid var(--border);font-size:0.65rem}
+.fp-header{display:flex;align-items:center;gap:4px;padding:4px 6px;border-bottom:1px solid var(--border);font-size:0.65rem;flex-shrink:0}
 .fp-title{color:var(--gray);text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap}
 .fp-close{margin-left:auto;cursor:pointer;color:var(--gray);font-size:0.7rem;padding:0 3px}
 .fp-close:hover{color:var(--text)}
-.float-panel iframe{width:100%;height:240px;border:none;display:block;background:var(--bg)}
+.float-panel iframe{flex:1;width:100%;min-height:100px;border:none;display:block;background:var(--bg)}

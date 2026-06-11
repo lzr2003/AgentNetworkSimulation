@@ -194,7 +194,7 @@ if BACKEND == "brain":
 # ═══════════════════════════════════════════════
 
 def _log_agent(event: str, detail: str, **kw):
-    timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    timestamp = datetime.now().isoformat(timespec="milliseconds")
     effective_id = kw.pop("from_id", _current_effective_id)
     effective_name = kw.pop("from_name", _current_effective_name)
     try:
@@ -607,9 +607,20 @@ async def act():
             r = requests.post(f"{SERVER_URL}/api/skills/execute", json={
                 "skill_name": skill_name, "params": skill_params,
             }, timeout=10)
-            result["skill_result"] = r.json() if r.ok else {"error": r.text[:500]}
-            _log_agent("act", f"技能调用: {skill_name} | 参数: {json.dumps(skill_params, ensure_ascii=False)}",
-                       action_type="execute_skill", target=skill_name, status="success" if r.ok else "failed")
+            skill_ret = r.json() if r.ok else {"error": r.text[:500]}
+            result["skill_result"] = skill_ret
+            # 将技能返回值写入收件箱，使 Agent 下一轮能看到结果
+            ret_str = json.dumps(skill_ret, ensure_ascii=False)
+            skill_feedback = f"[技能 {skill_name} 执行结果]\n{ret_str}"
+            if _agent:
+                _agent._add_to_inbox(from_agent="系统", content=skill_feedback, msg_type="system")
+            else:
+                inbox.append({"from": "系统", "content": skill_feedback, "type": "system"})
+                if len(inbox) > 50:
+                    inbox.pop(0)
+            _log_agent("act", f"技能调用: {skill_name} | 返回: {ret_str}",
+                       action_type="execute_skill", target=skill_name, status="success" if r.ok else "failed",
+                       skill_params=skill_params, skill_result=skill_ret)
         except Exception as e:
             result["skill_error"] = str(e)
             _log_agent("act", f"技能调用异常: {skill_name} | {e}",

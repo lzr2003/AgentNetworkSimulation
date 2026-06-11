@@ -386,7 +386,10 @@ async def minesweeper_board():
         row = []
         for x in range(SIZE):
             if revealed[y][x]:
-                row.append(1 if (x, y) in eng.discovered_mines else 0)
+                if (x, y) in eng.discovered_mines:
+                    row.append(-1)  # mine
+                else:
+                    row.append(eng.count_adjacent_mines(x, y))  # adjacent mine count
             else:
                 row.append(None)
         board.append(row)
@@ -740,6 +743,11 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
     smeta = meta.get("scenario_metadata", {})
     title = smeta.get("title", scene_name)
     bg = smeta.get("global_rules", "")
+    # 从场景元数据读取终止条件
+    if smeta.get("max_rounds"):
+        _termination_config["max_rounds"] = int(smeta["max_rounds"])
+    if smeta.get("stalemate_rounds"):
+        _termination_config["stalemate_rounds"] = int(smeta["stalemate_rounds"])
     roles = meta.get("roles", {})
     containers = instances.get("container_instances", {})
 
@@ -755,7 +763,7 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
             spec.loader.exec_module(mod)
             _active_skills_module = mod
             for name, func in mod.SkillRegistry._skills.items():
-                skills_info.append({"name": name, "desc": (func.__doc__ or "").strip().split('\n')[0]})
+                skills_info.append({"name": name, "desc": (func.__doc__ or "").strip()})
         except Exception:
             _active_skills_module = None
 

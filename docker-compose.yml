@@ -3,6 +3,7 @@
 x-brain: &brain
   build: { context: ., dockerfile: Dockerfile }
   environment:
+    TZ: Asia/Shanghai
     AGENT_BACKEND: brain
     MESSAGE_BUS_URL: http://bus:9000
     SERVER_URL: http://srv:8000
@@ -16,6 +17,7 @@ x-brain: &brain
 x-claude: &claude
   build: { context: ., dockerfile: Dockerfile.claude }
   environment:
+    TZ: Asia/Shanghai
     AGENT_BACKEND: claude-code
     MESSAGE_BUS_URL: http://bus:9000
     SERVER_URL: http://srv:8000
@@ -29,6 +31,7 @@ x-claude: &claude
 x-openclaw: &openclaw
   build: { context: ., dockerfile: Dockerfile.openclaw }
   environment:
+    TZ: Asia/Shanghai
     AGENT_BACKEND: openclaw
     MESSAGE_BUS_URL: http://bus:9000
     SERVER_URL: http://srv:8000
@@ -47,7 +50,7 @@ services:
     container_name: bus
     ports: ["9000:9000"]
     volumes: ["./data/logs:/app/data/logs"]
-    environment: { MESSAGE_BUS_PORT: "9000" }
+    environment: { TZ: "Asia/Shanghai", MESSAGE_BUS_PORT: "9000" }
     restart: unless-stopped
     networks: [an]
 
@@ -57,6 +60,7 @@ services:
     ports: ["8000:8000"]
     volumes: ["/var/run/docker.sock:/var/run/docker.sock", "./data/logs:/app/data/logs"]
     environment:
+      TZ: Asia/Shanghai
       SERVER_PORT: "8000"
       MESSAGE_BUS_URL: http://bus:9000
       LLM_API_KEY: ${ANTHROPIC_API_KEY}

@@ -1,25 +1,42 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><style>
+<html><head><meta charset="UTF-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#ECE8DF;font-family:Inter,system-ui,sans-serif;padding:8px;color:#2A2A2A}
-h3{font-size:11px;color:#6A665F;margin-bottom:6px;text-align:center}
-.grid{display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:#D4CCBC;border:1px solid #D4CCBC;width:180px;height:180px;margin:0 auto}
-.cell{background:#B0A89A;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;cursor:default;transition:background 0.2s}
-.cell.revealed-safe{background:#C8D6B8}
-.cell.revealed-safe.n1{color:#5A7A9A}.cell.revealed-safe.n2{color:#6B8A5E}.cell.revealed-safe.n3{color:#C0392B}.cell.revealed-safe.n4{color:#7A6A8A}.cell.revealed-safe.n5{color:#B8783A}
-.cell.mine{background:#C0392B;color:#fff;font-size:12px}
-.status{font-size:9px;color:#6A665F;text-align:center;margin-top:6px}
+html,body{width:100%;height:100%;overflow:hidden;background:#ECE8DF;font-family:Inter,system-ui,sans-serif;color:#2A2A2A}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px 4px}
+h3{font-size:8px;color:#6A665F;margin-bottom:1px;text-align:center;line-height:1}
+.board-wrap{position:relative;width:216px;height:216px}
+.grid{display:grid;grid-template-columns:repeat(9,24px);grid-template-rows:repeat(9,24px);gap:1px;background:#B0A89A;border:1px solid #B0A89A;border-radius:2px;overflow:hidden}
+.cell{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;position:relative;transition:background 0.3s}
+.cell.unknown{background:#8B8475}
+.cell.safe-0{background:#C8D6B8}.cell.safe-1{background:#A8C09A;color:#2A5A2A}
+.cell.safe-2{background:#8CB07A;color:#1A4A1A}.cell.safe-3{background:#D4A860;color:#5A3A10}
+.cell.safe-4{background:#C08040;color:#FFF}.cell.safe-5{background:#B04030;color:#FFF}
+.cell.safe-6{background:#902020;color:#FFF}.cell.safe-7{background:#701010;color:#FFF}
+.cell.safe-8{background:#500000;color:#FFF}
+.cell.mine{background:#C0392B;font-size:14px}
+.soldier-dot{position:absolute;width:10px;height:10px;border-radius:50%;border:1px solid #FFF;box-shadow:0 1px 2px rgba(0,0,0,0.3);z-index:2;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.soldier-dot .slabel{font-size:4px;color:#FFF;font-weight:700;text-shadow:0 0 2px rgba(0,0,0,0.5)}
+.status{font-size:8px;color:#6A665F;text-align:center;margin-top:4px;line-height:1.3}
+.legend{display:flex;gap:4px;justify-content:center;font-size:6px;color:#6A665F;margin-top:2px;flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:2px}
+.ldot{width:8px;height:8px;border-radius:50%}
 </style></head>
 <body>
 <h3>扫雷 9×9</h3>
-<div class="grid" id="grid"></div>
+<div class="board-wrap">
+  <div class="grid" id="grid"></div>
+</div>
 <div class="status" id="status">等待仿真开始...</div>
+<div class="legend">
+  <span><span class="ldot" style="background:#8B8475"></span>未探</span>
+  <span><span class="ldot" style="background:#C8D6B8"></span>安全</span>
+  <span><span class="ldot" style="background:#C0392B"></span>地雷</span>
+  <span>数字=相邻雷数</span>
+</div>
 <script>
 const API = '/api';
 const SIZE = 9;
-let board = []; // null=unrevealed, 0=safe, -1=mine
-let adjacentMines = []; // revealed safe cell -> adjacent mine count
+const SOLDIER_COLORS = ['#5A7A9A','#6B8A5E','#B8783A','#7A6A8A','#C0392B','#2E86C1','#D4AC0D','#1ABC9C','#E67E22'];
 
 function createGrid() {
   const g = document.getElementById('grid');
@@ -27,7 +44,7 @@ function createGrid() {
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       const cell = document.createElement('div');
-      cell.className = 'cell';
+      cell.className = 'cell unknown';
       cell.id = 'c' + r + '_' + c;
       g.appendChild(cell);
     }
@@ -36,38 +53,71 @@ function createGrid() {
 
 function updateBoard(data) {
   if (!data || !data.board) return;
-  board = data.board;
-  const mines = new Set((data.discovered_mines || []).map(m => m.x + ',' + m.y));
-  document.getElementById('status').textContent =
-    (data.game_state || '') + ' | 已揭示: ' + (data.cells_revealed || 0) +
-    ' | 完成: ' + (data.completion_percentage || '0%');
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       const cell = document.getElementById('c' + r + '_' + c);
       if (!cell) continue;
-      const val = board[r]?.[c];
+      const val = data.board[r]?.[c];
+      cell.querySelectorAll('.soldier-dot').forEach(d => d.remove());
       cell.className = 'cell';
       cell.textContent = '';
-      if (val === 1 || mines.has(c + ',' + r)) {
+      if (val === -1) {
         cell.className = 'cell mine';
         cell.textContent = '💣';
-      } else if (val === 0) {
-        cell.className = 'cell revealed-safe';
-        // Count adjacent mines (simplified: show nothing for now)
+      } else if (val !== null && val !== undefined) {
+        cell.className = 'cell safe-' + Math.min(val, 8);
+        if (val > 0) cell.textContent = val;
+      } else {
+        cell.className = 'cell unknown';
       }
     }
   }
+  document.getElementById('status').textContent =
+    (data.game_state || '') + ' | 已揭示: ' + (data.cells_revealed || 0) +
+    ' | 完成: ' + (data.completion_percentage || '0%');
+}
+
+function placeSoldiers(agents) {
+  if (!agents || !agents.length) return;
+  agents.filter(a => a.agent_id && a.agent_id.startsWith('soldier_'))
+    .forEach((a, i) => {
+      if (a.x == null || a.y == null) return;
+      const col = Math.round(a.x);
+      const row = Math.round(a.y);
+      if (col < 0 || col >= SIZE || row < 0 || row >= SIZE) return;
+      const cell = document.getElementById('c' + row + '_' + col);
+      if (!cell) return;
+      // Remove existing dot for same cell
+      cell.querySelectorAll('.soldier-dot').forEach(d => d.remove());
+      const dot = document.createElement('div');
+      dot.className = 'soldier-dot';
+      const num = a.agent_id.replace('soldier_', '');
+      dot.style.background = SOLDIER_COLORS[i % SOLDIER_COLORS.length];
+      dot.style.left = (24 - 10 - 1) + 'px';
+      dot.style.top = (24 - 10 - 1) + 'px';
+      dot.title = a.name || a.agent_id;
+      const label = document.createElement('span');
+      label.className = 'slabel';
+      label.textContent = num;
+      dot.appendChild(label);
+      cell.appendChild(dot);
+    });
+}
+
+async function poll() {
+  try {
+    const [br, ar] = await Promise.all([
+      fetch(API + '/minesweeper/board'),
+      fetch(API + '/agents')
+    ]);
+    if (br.ok) updateBoard(await br.json());
+    if (ar.ok) placeSoldiers(await ar.json());
+  } catch(e) {}
 }
 
 createGrid();
-
-// Poll board state every 2s
-setInterval(async () => {
-  try {
-    const r = await fetch(API + '/minesweeper/board');
-    if (r.ok) updateBoard(await r.json());
-  } catch(e) {}
-}, 2000);
+setInterval(poll, 2000);
+poll();
 </script>
 </body>
 </html>

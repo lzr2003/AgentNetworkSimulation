@@ -104,10 +104,7 @@ def move_and_reconnaissance(**kwargs):
     soldier_id = kwargs.get("soldier_id")
     x = kwargs.get("x")
     y = kwargs.get("y")
-    current_round = kwargs.get("current_round")
-
-    if current_round is None:
-        return {"status": "error", "result": "Missing 'current_round' parameter.", "data": {}}
+    current_round = kwargs.get("current_round", 0)
 
     if x is None or y is None or not (0 <= x < _engine.SIZE) or not (0 <= y < _engine.SIZE):
         return {"status": "error", "result": "Coordinates out of bounds (0-8 allowed).", "data": {}}
@@ -164,19 +161,53 @@ def move_and_reconnaissance(**kwargs):
 
 def query_game_status(**kwargs):
     """
-    查询当前 9x9 地图全局推进状态
+    查询当前 9x9 地图全局推进状态 — 返回完整棋盘网格供指挥官决策
+    网格符号: ? = 未探明, 数字 = 安全(相邻雷数), 💣 = 已发现地雷
     """
     current_round = kwargs.get("current_round", -1)
     is_victory, safe_count = _engine.check_victory()
     total_safe_cells = (_engine.SIZE * _engine.SIZE) - _engine.TOTAL_MINES
-    
+
     status_str = "RUNNING"
     if is_victory:
         status_str = "ALL_MAP_CLEARED_VICTORY"
 
+    # 构建可读的 9×9 网格
+    visual_grid = []
+    for y in range(_engine.SIZE):
+        row = []
+        for x in range(_engine.SIZE):
+            if (x, y) in _engine.discovered_mines:
+                row.append("💣")
+            elif _engine.revealed[y][x]:
+                adj = _engine.count_adjacent_mines(x, y)
+                row.append(str(adj))
+            else:
+                row.append("?")
+        visual_grid.append(row)
+
+    # 列出所有已揭示的安全格子坐标和各格相邻雷数
+    revealed_cells = []
+    for y in range(_engine.SIZE):
+        for x in range(_engine.SIZE):
+            if _engine.revealed[y][x] and (x, y) not in _engine.discovered_mines:
+                revealed_cells.append({
+                    "x": x, "y": y,
+                    "adjacent_mines": _engine.count_adjacent_mines(x, y),
+                })
+
+    # 按相邻雷数分组提示（帮助指挥官识别风险区域）
+    risk_summary = {}
+    for c in revealed_cells:
+        key = c["adjacent_mines"]
+        risk_summary.setdefault(key, 0)
+        risk_summary[key] += 1
+
+    grid_display = "\n".join(" ".join(row) for row in visual_grid)
+
     return {
         "status": "success",
-        "result": f"Game status requested at Global Round {current_round}.",
+        "result": f"棋盘状态 (Round {current_round}):\n{grid_display}\n\n图例: ?=未探明, 数字=安全格相邻雷数, 💣=已发现地雷\n已揭示 {safe_count}/{total_safe_cells} 安全格",
         "data": {
             "current_simulation_round": current_round,
             "game_state": status_str,
@@ -184,7 +215,11 @@ def query_game_status(**kwargs):
             "total_safe_cells_required": total_safe_cells,
             "completion_percentage": f"{(safe_count / total_safe_cells) * 100:.2f}%",
             "total_discovered_mines_count": len(_engine.discovered_mines),
-            "discovered_mines_coordinates": [f"({k[0]},{k[1]})" for k in _engine.discovered_mines.keys()]
+            "discovered_mines_coordinates": [f"({k[0]},{k[1]})" for k in _engine.discovered_mines.keys()],
+            "board_grid": visual_grid,
+            "revealed_cells": revealed_cells,
+            "risk_summary": risk_summary,
+            "unrevealed_count": (_engine.SIZE * _engine.SIZE) - len(revealed_cells) - len(_engine.discovered_mines),
         }
     }
 
