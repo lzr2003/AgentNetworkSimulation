@@ -1,0 +1,136 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "bank_internal",
+      "topology_type": "STAR",
+      "description": "各银行内部协作网络，以数据中心为核心",
+      "nodes": [
+        "BOCOM_DC",
+        "BOCOM_DEV",
+        "ICBC_FINTECH",
+        "ICBC_NET"
+      ],
+      "edges": [
+        {
+          "source": "BOCOM_DC",
+          "target": "BOCOM_DEV",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_101"
+        },
+        {
+          "source": "ICBC_FINTECH",
+          "target": "ICBC_NET",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_102"
+        },
+        {
+          "source": "BOCOM_DC",
+          "target": "ICBC_FINTECH",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "interbank_link_1"
+        }
+      ]
+    },
+    {
+      "sub_id": "vendor_negotiation",
+      "topology_type": "MESH",
+      "description": "供应商与银行间的谈判网络",
+      "nodes": [
+        "CHIP_VENDOR",
+        "CHIP_RIVAL",
+        "INTEGRATOR",
+        "BOCOM_DC",
+        "ICBC_FINTECH"
+      ],
+      "edges": [
+        {
+          "source": "CHIP_VENDOR",
+          "target": "INTEGRATOR",
+          "paradigm": "COLLABORATION",
+          "channel_id": "supply_chain_1"
+        },
+        {
+          "source": "CHIP_RIVAL",
+          "target": "INTEGRATOR",
+          "paradigm": "COLLABORATION",
+          "channel_id": "supply_chain_2"
+        },
+        {
+          "source": "INTEGRATOR",
+          "target": "BOCOM_DC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "biz_dev_1"
+        },
+        {
+          "source": "INTEGRATOR",
+          "target": "ICBC_FINTECH",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "biz_dev_2"
+        },
+        {
+          "source": "CHIP_VENDOR",
+          "target": "BOCOM_DC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "direct_sales_1"
+        },
+        {
+          "source": "CHIP_RIVAL",
+          "target": "ICBC_FINTECH",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "direct_sales_2"
+        }
+      ]
+    },
+    {
+      "sub_id": "testing_regulation",
+      "topology_type": "TREE",
+      "description": "测试与监管层级网络",
+      "nodes": [
+        "TEST_LAB",
+        "REGULATOR",
+        "CONSULTANT",
+        "BOCOM_DC",
+        "ICBC_FINTECH"
+      ],
+      "edges": [
+        {
+          "source": "REGULATOR",
+          "target": "TEST_LAB",
+          "paradigm": "GAME",
+          "channel_id": "compliance_audit_1"
+        },
+        {
+          "source": "TEST_LAB",
+          "target": "BOCOM_DC",
+          "paradigm": "COLLABORATION",
+          "channel_id": "test_request_1"
+        },
+        {
+          "source": "TEST_LAB",
+          "target": "ICBC_FINTECH",
+          "paradigm": "COLLABORATION",
+          "channel_id": "test_request_2"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "REGULATOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "advisory_1"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "BOCOM_DC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "advisory_2"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "ICBC_FINTECH",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "advisory_3"
+        }
+      ]
+    }
+  ]
+}

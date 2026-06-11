@@ -1,0 +1,75 @@
+{
+  "container_instances": {
+    "BANK_DC": {
+      "skills": [
+        "negotiate_contract",
+        "evaluate_vendor",
+        "monitor_sla"
+      ]
+    },
+    "GOV_INFRA": {
+      "skills": [
+        "negotiate_contract",
+        "audit_compliance",
+        "approve_budget"
+      ]
+    },
+    "UNIV_NET": {
+      "skills": [
+        "troubleshoot_network",
+        "request_proposal",
+        "train_staff"
+      ]
+    },
+    "AI_PROVIDER": {
+      "skills": [
+        "demo_platform",
+        "customize_interface",
+        "propose_integration",
+        "calculate_roi"
+      ]
+    },
+    "AGENT_A": {
+      "skills": [
+        "protect_exclusive_access",
+        "negotiate_terms",
+        "provide_support"
+      ]
+    },
+    "AGENT_B": {
+      "skills": [
+        "protect_exclusive_access",
+        "negotiate_terms",
+        "provide_support"
+      ]
+    },
+    "AGENT_C": {
+      "skills": [
+        "collaborate_integration",
+        "share_data",
+        "expand_service"
+      ]
+    },
+    "IT_OUTSOURCER": {
+      "skills": [
+        "perform_maintenance",
+        "report_incident",
+        "upskill_team"
+      ]
+    },
+    "REGULATOR": {
+      "skills": [
+        "draft_standard",
+        "enforce_compliance",
+        "mediate_dispute"
+      ]
+    },
+    "VENDOR_OEM": {
+      "skills": [
+        "lobby_against_standard",
+        "offer_incentive",
+        "delay_cooperation"
+      ]
+    }
+  }
+}

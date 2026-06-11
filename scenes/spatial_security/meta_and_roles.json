@@ -1,0 +1,66 @@
+{
+  "scenario_metadata": {
+    "title": "多维空间安全感知博弈与协作",
+    "global_rules": "仿真环境模拟多组织在非视觉感知技术（CSI、雷达、AI算法）上的合作、谈判与零和竞争。所有资源（预算、技术专利、测试数据）有限，角色需在10轮内达成目标或陷入僵局。",
+    "max_rounds": 10,
+    "stalemate_rounds": 3
+  },
+  "roles": {
+    "NAN_WANG_SAFETY": {
+      "name": "南网变电站安全科",
+      "model_backbone": "openclaw",
+      "identity": "南方电网下属变电站安全管理部门，负责电力设施周边安全，对野生动物入侵、人员非法闯入有刚性需求。",
+      "core_goal": "在10轮内完成至少1个非视觉感知试点项目，预算控制在200万以内，且误报率低于5%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SZ_AIRPORT_SECURITY": {
+      "name": "深圳机场安保部",
+      "model_backbone": "claudecode",
+      "identity": "深圳宝安国际机场安保部门，需要高精度人员检测与体态识别，防止入侵和异常行为。",
+      "core_goal": "在10轮内采购一套集成CSI和雷达的感知系统，预算500万以内，检测精度>95%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "TSINGHUA_LAB": {
+      "name": "清华大学智能感知实验室",
+      "model_backbone": "openclaw",
+      "identity": "顶尖高校研究机构，专注于非视觉感知算法研究，拥有CSI和雷达数据处理核心技术。",
+      "core_goal": "在10轮内完成至少2个技术专利授权，获得总计不低于300万的研发经费。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "CSI_VENDOR": {
+      "name": "CSI感知设备厂商",
+      "model_backbone": "claudecode",
+      "identity": "专注于CSI（信道状态信息）感知设备的制造商，产品可用于多人检测和生命体征监测。",
+      "core_goal": "在10轮内获得至少1个订单，销售额不低于150万，并争取独家供应资格。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "RADAR_SUPPLIER": {
+      "name": "雷达传感器供应商",
+      "model_backbone": "openclaw",
+      "identity": "提供毫米波雷达传感器，用于体态识别和距离检测，技术成熟度高。",
+      "core_goal": "在10轮内与至少2个系统集成商或终端用户签订供货合同，总价值不低于200万。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "AI_ALGO_SERVICE": {
+      "name": "AI算法服务商",
+      "model_backbone": "claudecode",
+      "identity": "提供基于深度学习的感知算法，能够融合CSI和雷达数据，实现高精度检测。",
+      "core_goal": "在10轮内获得至少2个算法授权或开发合同，总收入不低于250万。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "SYS_INTEGRATOR": {
+      "name": "系统集成商",
+      "model_backbone": "openclaw",
+      "identity": "负责将CSI设备、雷达传感器和AI算法整合为完整解决方案，并交付给终端用户。",
+      "core_goal": "在10轮内完成至少1个集成项目，利润率不低于20%，且项目总额不低于500万。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "REGULATOR": {
+      "name": "行业监管机构",
+      "model_backbone": "claudecode",
+      "identity": "虚拟角色代表政府或行业标准制定者，监督技术合规性和数据安全。",
+      "core_goal": "在10轮内确保所有技术方案符合安全标准，并推动至少1项行业规范出台。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    }
+  }
+}

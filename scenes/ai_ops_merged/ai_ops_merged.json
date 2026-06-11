@@ -1,0 +1,200 @@
+{
+  "scenario_metadata": {
+    "title": "AI智能运维多域融合与博弈",
+    "global_rules": "仿真环境模拟一个包含金融、政务、教育三大行业客户的数据中心网络运维场景。各角色在资源有限、故障频发的环境下，通过协作、谈判或博弈达成各自量化目标。每轮代表一个故障事件周期（30分钟）。",
+    "max_rounds": 10,
+    "stalemate_rounds": 4
+  },
+  "global_topology_type": "HYBRID_MESH",
+  "roles": {
+    "BANK_DC": {
+      "name": "交通银行数据中心",
+      "model_backbone": "claudecode",
+      "identity": "大型银行数据中心，拥有多厂商多代际设备（华为、思科、IBM等），对业务连续性要求极高。",
+      "core_goal": "将平均故障定位时间（MTTI）从当前45分钟降低至15分钟以内，且年度运维预算结余不低于10%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "AGENT_A",
+        "AGENT_B",
+        "AI_PROVIDER",
+        "IT_OUTSOURCER"
+      ],
+      "skills": [
+        "negotiate_contract",
+        "evaluate_vendor",
+        "monitor_sla"
+      ]
+    },
+    "GOV_INFRA": {
+      "name": "江苏政数局基础设施处",
+      "model_backbone": "claudecode",
+      "identity": "省级政务云基础设施管理部门，负责监管多家服务商，对数据安全和合规性有严格要求。",
+      "core_goal": "实现跨厂商设备统一纳管率≥90%，且年度第三方服务采购成本降低20%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "AGENT_A",
+        "AGENT_C",
+        "AI_PROVIDER",
+        "IT_OUTSOURCER"
+      ],
+      "skills": [
+        "negotiate_contract",
+        "audit_compliance",
+        "approve_budget"
+      ]
+    },
+    "UNIV_NET": {
+      "name": "郑州大学网络中心",
+      "model_backbone": "openclaw",
+      "identity": "高校网络中心，设备品牌混杂（Cisco、H3C、锐捷），预算有限，技术力量相对薄弱。",
+      "core_goal": "将网络故障平均恢复时间（MTTR）从2小时压缩至1小时以内，且不增加额外人员编制。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
+      "peers": [
+        "AGENT_B",
+        "AGENT_C",
+        "AI_PROVIDER",
+        "IT_OUTSOURCER"
+      ],
+      "skills": [
+        "troubleshoot_network",
+        "request_proposal",
+        "train_staff"
+      ]
+    },
+    "AI_PROVIDER": {
+      "name": "AI运维平台提供商",
+      "model_backbone": "openclaw",
+      "identity": "提供基于AI的智能运维平台，意图统一南向接口，实现故障预测和自动定位。",
+      "core_goal": "在仿真周期内获得至少3个客户（银行、政务、高校）的采购合同，且平台部署后客户满意度评分≥85。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "AGENT_C",
+        "BANK_DC",
+        "GOV_INFRA",
+        "IT_OUTSOURCER",
+        "UNIV_NET"
+      ],
+      "skills": [
+        "demo_platform",
+        "customize_interface",
+        "propose_integration",
+        "calculate_roi"
+      ]
+    },
+    "AGENT_A": {
+      "name": "华为设备网管代理商",
+      "model_backbone": "claudecode",
+      "identity": "华为设备官方网管代理商，掌握华为设备私有接口和配置权限。",
+      "core_goal": "保持华为设备网管服务收入不下降，且争取AI平台集成后仍保留独立运维入口。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "AGENT_B",
+        "AGENT_C",
+        "BANK_DC",
+        "GOV_INFRA",
+        "REGULATOR",
+        "VENDOR_OEM"
+      ],
+      "skills": [
+        "protect_exclusive_access",
+        "negotiate_terms",
+        "provide_support"
+      ]
+    },
+    "AGENT_B": {
+      "name": "思科设备网管代理商",
+      "model_backbone": "claudecode",
+      "identity": "思科设备官方网管代理商，掌握思科设备私有协议。",
+      "core_goal": "阻止AI平台直接接管思科设备管理，维持自身价值，实现服务续约率100%。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "AGENT_A",
+        "AGENT_C",
+        "BANK_DC",
+        "REGULATOR",
+        "UNIV_NET",
+        "VENDOR_OEM"
+      ],
+      "skills": [
+        "protect_exclusive_access",
+        "negotiate_terms",
+        "provide_support"
+      ]
+    },
+    "AGENT_C": {
+      "name": "国产设备网管代理商（H3C/锐捷）",
+      "model_backbone": "openclaw",
+      "identity": "代理H3C、锐捷等国产设备网管，技术栈开放，但市场份额较小。",
+      "core_goal": "借AI平台集成机会扩大自身服务范围，争取设备管理数量增长30%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
+      "peers": [
+        "AGENT_A",
+        "AGENT_B",
+        "AI_PROVIDER",
+        "GOV_INFRA",
+        "REGULATOR",
+        "UNIV_NET",
+        "VENDOR_OEM"
+      ],
+      "skills": [
+        "collaborate_integration",
+        "share_data",
+        "expand_service"
+      ]
+    },
+    "IT_OUTSOURCER": {
+      "name": "IT服务外包商",
+      "model_backbone": "openclaw",
+      "identity": "提供一线运维人力外包，负责日常巡检和简单故障处理。",
+      "core_goal": "确保外包合同金额不减少，且人员技能升级后能承接更多自动化运维任务。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
+      "peers": [
+        "AI_PROVIDER",
+        "BANK_DC",
+        "GOV_INFRA",
+        "UNIV_NET"
+      ],
+      "skills": [
+        "perform_maintenance",
+        "report_incident",
+        "upskill_team"
+      ]
+    },
+    "REGULATOR": {
+      "name": "行业监管机构（虚拟角色）",
+      "model_backbone": "claudecode",
+      "identity": "金融、政务、教育行业的虚拟监管者，制定接口开放和网络安全标准。",
+      "core_goal": "推动所有角色在仿真结束前签署一份统一南向接口标准协议。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "AGENT_A",
+        "AGENT_B",
+        "AGENT_C",
+        "VENDOR_OEM"
+      ],
+      "skills": [
+        "draft_standard",
+        "enforce_compliance",
+        "mediate_dispute"
+      ]
+    },
+    "VENDOR_OEM": {
+      "name": "设备原厂代表（虚拟角色）",
+      "model_backbone": "claudecode",
+      "identity": "代表各大设备原厂（华为、思科等）的利益，维护私有协议壁垒。",
+      "core_goal": "阻止统一南向接口标准通过，至少让两家客户保留私有协议。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "AGENT_A",
+        "AGENT_B",
+        "AGENT_C",
+        "REGULATOR"
+      ],
+      "skills": [
+        "lobby_against_standard",
+        "offer_incentive",
+        "delay_cooperation"
+      ]
+    }
+  }
+}

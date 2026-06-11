@@ -1,0 +1,192 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "customer_star",
+      "topology_type": "STAR",
+      "description": "三大客户（银行、政务、高校）为中心，各自与AI平台、代理商、外包商连接",
+      "nodes": [
+        "BANK_DC",
+        "GOV_INFRA",
+        "UNIV_NET",
+        "AI_PROVIDER",
+        "AGENT_A",
+        "AGENT_B",
+        "AGENT_C",
+        "IT_OUTSOURCER"
+      ],
+      "edges": [
+        {
+          "source": "BANK_DC",
+          "target": "AI_PROVIDER",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bank_ai"
+        },
+        {
+          "source": "BANK_DC",
+          "target": "AGENT_A",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bank_huawei"
+        },
+        {
+          "source": "BANK_DC",
+          "target": "AGENT_B",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bank_cisco"
+        },
+        {
+          "source": "BANK_DC",
+          "target": "IT_OUTSOURCER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bank_outsource"
+        },
+        {
+          "source": "GOV_INFRA",
+          "target": "AI_PROVIDER",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_gov_ai"
+        },
+        {
+          "source": "GOV_INFRA",
+          "target": "AGENT_A",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_gov_huawei"
+        },
+        {
+          "source": "GOV_INFRA",
+          "target": "AGENT_C",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_gov_domestic"
+        },
+        {
+          "source": "GOV_INFRA",
+          "target": "IT_OUTSOURCER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_gov_outsource"
+        },
+        {
+          "source": "UNIV_NET",
+          "target": "AI_PROVIDER",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_uni_ai"
+        },
+        {
+          "source": "UNIV_NET",
+          "target": "AGENT_B",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_uni_cisco"
+        },
+        {
+          "source": "UNIV_NET",
+          "target": "AGENT_C",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_uni_domestic"
+        },
+        {
+          "source": "UNIV_NET",
+          "target": "IT_OUTSOURCER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_uni_outsource"
+        }
+      ]
+    },
+    {
+      "sub_id": "agent_mesh",
+      "topology_type": "MESH",
+      "description": "代理商之间以及与原厂、监管机构的博弈网络",
+      "nodes": [
+        "AGENT_A",
+        "AGENT_B",
+        "AGENT_C",
+        "VENDOR_OEM",
+        "REGULATOR"
+      ],
+      "edges": [
+        {
+          "source": "AGENT_A",
+          "target": "AGENT_B",
+          "paradigm": "GAME",
+          "channel_id": "vlan_agent_ab"
+        },
+        {
+          "source": "AGENT_A",
+          "target": "AGENT_C",
+          "paradigm": "GAME",
+          "channel_id": "vlan_agent_ac"
+        },
+        {
+          "source": "AGENT_B",
+          "target": "AGENT_C",
+          "paradigm": "GAME",
+          "channel_id": "vlan_agent_bc"
+        },
+        {
+          "source": "AGENT_A",
+          "target": "VENDOR_OEM",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_agent_a_oem"
+        },
+        {
+          "source": "AGENT_B",
+          "target": "VENDOR_OEM",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_agent_b_oem"
+        },
+        {
+          "source": "AGENT_C",
+          "target": "VENDOR_OEM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_agent_c_oem"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "AGENT_A",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_reg_agent_a"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "AGENT_B",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_reg_agent_b"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "AGENT_C",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_reg_agent_c"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "VENDOR_OEM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_reg_oem"
+        }
+      ]
+    },
+    {
+      "sub_id": "ai_provider_tree",
+      "topology_type": "TREE",
+      "description": "AI平台提供商内部技术协作层级（虚拟，但体现其与外包商、代理商的协作）",
+      "nodes": [
+        "AI_PROVIDER",
+        "AGENT_C",
+        "IT_OUTSOURCER"
+      ],
+      "edges": [
+        {
+          "source": "AI_PROVIDER",
+          "target": "AGENT_C",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_ai_agent_c"
+        },
+        {
+          "source": "AI_PROVIDER",
+          "target": "IT_OUTSOURCER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_ai_outsource"
+        }
+      ]
+    }
+  ]
+}

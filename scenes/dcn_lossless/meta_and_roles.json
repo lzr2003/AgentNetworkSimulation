@@ -1,0 +1,80 @@
+{
+  "scenario_metadata": {
+    "title": "金融DCN通算无损网络仿真",
+    "global_rules": "仿真环境模拟金融数据中心DCN网络，存在PFC死锁和丢包风险。所有决策需在10轮内达成稳定方案。",
+    "max_rounds": 10,
+    "stalemate_rounds": 3
+  },
+  "roles": {
+    "BOCOM_DC": {
+      "name": "交通银行数据中心",
+      "model_backbone": "openclaw",
+      "identity": "交通银行数据中心运维团队，负责日常网络运维，遭遇PFC死锁导致交易延迟。",
+      "core_goal": "在5轮内将PFC死锁频率降低80%，丢包率降至0.01%以下。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "ICBC_FINTECH": {
+      "name": "工商银行金融科技部",
+      "model_backbone": "claudecode",
+      "identity": "工商银行金融科技部，负责全行网络架构规划，对DCN无损网络有高要求。",
+      "core_goal": "实现跨数据中心流量零丢包，且总成本增加不超过10%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "CHIP_VENDOR": {
+      "name": "交换机芯片厂商",
+      "model_backbone": "claudecode",
+      "identity": "全球领先的交换机芯片厂商，提供支持PFC的芯片方案。",
+      "core_goal": "推广其最新支持智能流控的芯片，市场份额提升20%。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "INTEGRATOR": {
+      "name": "网络设备集成商",
+      "model_backbone": "openclaw",
+      "identity": "国内大型网络设备集成商，提供端到端DCN解决方案。",
+      "core_goal": "在6轮内中标交行工行联合采购项目，合同额不低于5000万。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "TEST_LAB": {
+      "name": "无损网络测试实验室",
+      "model_backbone": "openclaw",
+      "identity": "第三方权威测试实验室，负责验证网络方案性能。",
+      "core_goal": "在3轮内完成至少3种方案的对比测试，并出具报告。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "REGULATOR": {
+      "name": "金融监管科技局",
+      "model_backbone": "claudecode",
+      "identity": "金融监管机构下属科技局，制定金融数据中心网络标准。",
+      "core_goal": "推动形成金融行业无损网络白皮书，要求所有方案通过测试。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "BOCOM_DEV": {
+      "name": "交通银行开发部",
+      "model_backbone": "openclaw",
+      "identity": "交通银行内部应用开发团队，依赖网络稳定性。",
+      "core_goal": "确保交易系统在改造期间可用性不低于99.999%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "ICBC_NET": {
+      "name": "工商银行网络运维中心",
+      "model_backbone": "openclaw",
+      "identity": "工商银行网络运维团队，负责生产网络日常管理。",
+      "core_goal": "在8轮内完成网络升级方案部署，且不影响现有业务。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "CHIP_RIVAL": {
+      "name": "竞争对手芯片厂",
+      "model_backbone": "claudecode",
+      "identity": "另一家芯片厂商，主推基于RoCEv2的方案。",
+      "core_goal": "在5轮内争取到至少一家银行的试用机会。",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME"
+    },
+    "CONSULTANT": {
+      "name": "第三方咨询机构",
+      "model_backbone": "openclaw",
+      "identity": "专业金融科技咨询公司，提供网络架构评估。",
+      "core_goal": "在4轮内发布行业分析报告，并获得至少3家客户引用。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    }
+  }
+}

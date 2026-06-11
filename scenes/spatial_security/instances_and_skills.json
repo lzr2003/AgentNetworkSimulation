@@ -1,0 +1,60 @@
+{
+  "container_instances": {
+    "NAN_WANG_SAFETY": {
+      "skills": [
+        "negotiate_contract",
+        "evaluate_proposal",
+        "manage_budget"
+      ]
+    },
+    "SZ_AIRPORT_SECURITY": {
+      "skills": [
+        "negotiate_contract",
+        "evaluate_proposal",
+        "manage_budget"
+      ]
+    },
+    "TSINGHUA_LAB": {
+      "skills": [
+        "develop_algorithm",
+        "license_patent",
+        "collaborate_research"
+      ]
+    },
+    "CSI_VENDOR": {
+      "skills": [
+        "produce_device",
+        "price_negotiation",
+        "supply_chain_manage"
+      ]
+    },
+    "RADAR_SUPPLIER": {
+      "skills": [
+        "produce_device",
+        "price_negotiation",
+        "supply_chain_manage"
+      ]
+    },
+    "AI_ALGO_SERVICE": {
+      "skills": [
+        "develop_algorithm",
+        "license_patent",
+        "collaborate_research"
+      ]
+    },
+    "SYS_INTEGRATOR": {
+      "skills": [
+        "integrate_system",
+        "manage_project",
+        "negotiate_contract"
+      ]
+    },
+    "REGULATOR": {
+      "skills": [
+        "audit_compliance",
+        "set_standard",
+        "approve_solution"
+      ]
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "demand_side",
+      "topology_type": "STAR",
+      "description": "需求方（南网、机场）与系统集成商的核心连接，以及监管机构的监督关系。",
+      "nodes": [
+        "NAN_WANG_SAFETY",
+        "SZ_AIRPORT_SECURITY",
+        "SYS_INTEGRATOR",
+        "REGULATOR"
+      ],
+      "edges": [
+        {
+          "source": "NAN_WANG_SAFETY",
+          "target": "SYS_INTEGRATOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_101"
+        },
+        {
+          "source": "SZ_AIRPORT_SECURITY",
+          "target": "SYS_INTEGRATOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_102"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "NAN_WANG_SAFETY",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_103"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "SZ_AIRPORT_SECURITY",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_104"
+        }
+      ]
+    },
+    {
+      "sub_id": "supply_side",
+      "topology_type": "MESH",
+      "description": "供应商（CSI厂商、雷达供应商、AI算法商、清华实验室）之间的竞争与合作网络。",
+      "nodes": [
+        "CSI_VENDOR",
+        "RADAR_SUPPLIER",
+        "AI_ALGO_SERVICE",
+        "TSINGHUA_LAB"
+      ],
+      "edges": [
+        {
+          "source": "CSI_VENDOR",
+          "target": "AI_ALGO_SERVICE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_201"
+        },
+        {
+          "source": "RADAR_SUPPLIER",
+          "target": "AI_ALGO_SERVICE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_202"
+        },
+        {
+          "source": "CSI_VENDOR",
+          "target": "TSINGHUA_LAB",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_203"
+        },
+        {
+          "source": "RADAR_SUPPLIER",
+          "target": "TSINGHUA_LAB",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_204"
+        },
+        {
+          "source": "CSI_VENDOR",
+          "target": "RADAR_SUPPLIER",
+          "paradigm": "GAME",
+          "channel_id": "vlan_bridge_205"
+        }
+      ]
+    },
+    {
+      "sub_id": "integration",
+      "topology_type": "STAR",
+      "description": "系统集成商连接供应商和需求方，作为中心节点。",
+      "nodes": [
+        "SYS_INTEGRATOR",
+        "CSI_VENDOR",
+        "RADAR_SUPPLIER",
+        "AI_ALGO_SERVICE",
+        "TSINGHUA_LAB"
+      ],
+      "edges": [
+        {
+          "source": "SYS_INTEGRATOR",
+          "target": "CSI_VENDOR",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_301"
+        },
+        {
+          "source": "SYS_INTEGRATOR",
+          "target": "RADAR_SUPPLIER",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_302"
+        },
+        {
+          "source": "SYS_INTEGRATOR",
+          "target": "AI_ALGO_SERVICE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_bridge_303"
+        },
+        {
+          "source": "SYS_INTEGRATOR",
+          "target": "TSINGHUA_LAB",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_bridge_304"
+        }
+      ]
+    }
+  ]
+}

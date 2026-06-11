@@ -1,0 +1,76 @@
+{
+  "container_instances": {
+    "THU_ITC": {
+      "skills": [
+        "evaluate_vendor_proposals",
+        "allocate_budget",
+        "coordinate_deployment",
+        "report_progress"
+      ]
+    },
+    "ZZU_ITD": {
+      "skills": [
+        "evaluate_vendor_proposals",
+        "allocate_budget",
+        "coordinate_deployment",
+        "report_progress"
+      ]
+    },
+    "RFID_CORP": {
+      "skills": [
+        "propose_rfid_solution",
+        "negotiate_price",
+        "provide_tech_support"
+      ]
+    },
+    "WIFI_CORP": {
+      "skills": [
+        "propose_wifi_solution",
+        "negotiate_price",
+        "provide_tech_support"
+      ]
+    },
+    "ASSET_SYS": {
+      "skills": [
+        "propose_integration_plan",
+        "negotiate_price",
+        "customize_software"
+      ]
+    },
+    "NET_OPS": {
+      "skills": [
+        "assess_network_impact",
+        "deploy_infrastructure",
+        "monitor_performance"
+      ]
+    },
+    "HOSP_OPS": {
+      "skills": [
+        "assess_network_impact",
+        "deploy_infrastructure",
+        "monitor_performance"
+      ]
+    },
+    "THU_FIN": {
+      "skills": [
+        "approve_payment",
+        "audit_expenditure",
+        "negotiate_payment_terms"
+      ]
+    },
+    "ZZU_FIN": {
+      "skills": [
+        "approve_payment",
+        "audit_expenditure",
+        "negotiate_payment_terms"
+      ]
+    },
+    "GOV_REG": {
+      "skills": [
+        "review_compliance",
+        "issue_certification",
+        "audit_data_security"
+      ]
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "scenario_metadata": {
+    "title": "无线资产盘点系统联合攻关与部署",
+    "global_rules": "仿真环境为多机构联合项目，资源有限，各方利益交织。每轮代表一周，各角色可执行技能、发送消息。",
+    "max_rounds": 12,
+    "stalemate_rounds": 4
+  },
+  "roles": {
+    "THU_ITC": {
+      "name": "清华大学信息中心",
+      "model_backbone": "openclaw",
+      "identity": "高校信息化管理部门，负责校园IT资产管理与网络运维，希望提升盘点效率，降低成本。",
+      "core_goal": "在12周内部署一套覆盖全校主要楼宇的无线资产盘点系统，预算控制在200万以内，盘点准确率>95%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "ZZU_ITD": {
+      "name": "郑大一附院信息科",
+      "model_backbone": "openclaw",
+      "identity": "大型医院信息科，医疗设备资产价值高、移动频繁，盘点需求迫切，但预算紧张。",
+      "core_goal": "在12周内以不超过150万的成本，实现关键医疗设备盘点覆盖率>90%，并降低人工盘点工时50%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "RFID_CORP": {
+      "name": "RFID定位设备厂商",
+      "model_backbone": "claudecode",
+      "identity": "专业RFID标签与读写器制造商，提供硬件方案，追求利润最大化。",
+      "core_goal": "在项目中获取至少100万的硬件订单，并争取后续独家供应权。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "WIFI_CORP": {
+      "name": "WiFi定位设备厂商",
+      "model_backbone": "claudecode",
+      "identity": "基于WiFi指纹的定位技术提供商，软件方案为主，硬件成本低。",
+      "core_goal": "推动WiFi定位方案成为主流，获取至少80万订单，并建立长期维护合同。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "ASSET_SYS": {
+      "name": "资产管理系统提供商",
+      "model_backbone": "openclaw",
+      "identity": "提供资产数据库与盘点管理软件，与硬件厂商合作集成。",
+      "core_goal": "将系统集成费收入提升至50万以上，并确保系统兼容性。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "NET_OPS": {
+      "name": "校园网络运维团队",
+      "model_backbone": "openclaw",
+      "identity": "负责校园网基础设施，配合部署定位系统，但担心网络干扰。",
+      "core_goal": "确保定位系统不影响现有网络性能，且运维成本增加不超过10%。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "HOSP_OPS": {
+      "name": "医院运维团队",
+      "model_backbone": "openclaw",
+      "identity": "医院内部网络与设备运维团队，配合系统部署与日常维护。",
+      "core_goal": "保证系统上线后故障响应时间<2小时，且不增加人员编制。",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "THU_FIN": {
+      "name": "清华大学财务处",
+      "model_backbone": "claudecode",
+      "identity": "负责项目预算审批与支付，要求性价比最优。",
+      "core_goal": "总支出不超过预算200万，且至少节省10%作为储备金。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "ZZU_FIN": {
+      "name": "郑大一附院财务处",
+      "model_backbone": "claudecode",
+      "identity": "医院财务，严格控制预算，倾向低成本方案。",
+      "core_goal": "总支出不超过150万，且要求分阶段付款，降低风险。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "GOV_REG": {
+      "name": "行业监管机构",
+      "model_backbone": "claudecode",
+      "identity": "负责制定资产盘点标准与数据安全规范，监督项目合规性。",
+      "core_goal": "确保项目符合最新数据安全法，且盘点数据可审计。",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "container_instances": {
+    "BOCOM_DC": {
+      "skills": [
+        "monitor_network",
+        "report_anomaly",
+        "request_support"
+      ]
+    },
+    "ICBC_FINTECH": {
+      "skills": [
+        "evaluate_budget",
+        "negotiate_contract",
+        "approve_plan"
+      ]
+    },
+    "CHIP_VENDOR": {
+      "skills": [
+        "propose_chip",
+        "offer_discount",
+        "benchmark_performance"
+      ]
+    },
+    "INTEGRATOR": {
+      "skills": [
+        "design_solution",
+        "quote_price",
+        "schedule_deployment"
+      ]
+    },
+    "TEST_LAB": {
+      "skills": [
+        "run_test",
+        "generate_report",
+        "verify_compliance"
+      ]
+    },
+    "REGULATOR": {
+      "skills": [
+        "issue_standard",
+        "audit_compliance",
+        "penalize_noncompliance"
+      ]
+    },
+    "BOCOM_DEV": {
+      "skills": [
+        "test_application",
+        "report_downtime",
+        "request_stability"
+      ]
+    },
+    "ICBC_NET": {
+      "skills": [
+        "deploy_update",
+        "monitor_traffic",
+        "rollback_change"
+      ]
+    },
+    "CHIP_RIVAL": {
+      "skills": [
+        "propose_alternative",
+        "undercut_price",
+        "lobby_decision"
+      ]
+    },
+    "CONSULTANT": {
+      "skills": [
+        "analyze_market",
+        "write_report",
+        "advise_strategy"
+      ]
+    }
+  }
+}

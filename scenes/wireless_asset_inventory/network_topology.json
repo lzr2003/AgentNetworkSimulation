@@ -1,0 +1,186 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "sub_campus",
+      "topology_type": "TREE",
+      "description": "清华大学内部组织结构，财务处审批，信息中心主导，运维团队执行。",
+      "nodes": [
+        "THU_ITC",
+        "NET_OPS",
+        "THU_FIN"
+      ],
+      "edges": [
+        {
+          "source": "THU_FIN",
+          "target": "THU_ITC",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_campus_fin"
+        },
+        {
+          "source": "THU_ITC",
+          "target": "NET_OPS",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_campus_ops"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_hospital",
+      "topology_type": "TREE",
+      "description": "医院内部结构，财务处审批，信息科主导，运维团队执行。",
+      "nodes": [
+        "ZZU_ITD",
+        "HOSP_OPS",
+        "ZZU_FIN"
+      ],
+      "edges": [
+        {
+          "source": "ZZU_FIN",
+          "target": "ZZU_ITD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_hosp_fin"
+        },
+        {
+          "source": "ZZU_ITD",
+          "target": "HOSP_OPS",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_hosp_ops"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_vendor",
+      "topology_type": "MESH",
+      "description": "供应商与客户之间的谈判网络，多方博弈。",
+      "nodes": [
+        "RFID_CORP",
+        "WIFI_CORP",
+        "ASSET_SYS",
+        "THU_ITC",
+        "ZZU_ITD",
+        "THU_FIN",
+        "ZZU_FIN"
+      ],
+      "edges": [
+        {
+          "source": "RFID_CORP",
+          "target": "THU_ITC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_rfid_thu"
+        },
+        {
+          "source": "RFID_CORP",
+          "target": "ZZU_ITD",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_rfid_zzu"
+        },
+        {
+          "source": "WIFI_CORP",
+          "target": "THU_ITC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_wifi_thu"
+        },
+        {
+          "source": "WIFI_CORP",
+          "target": "ZZU_ITD",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_wifi_zzu"
+        },
+        {
+          "source": "ASSET_SYS",
+          "target": "THU_ITC",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_asset_thu"
+        },
+        {
+          "source": "ASSET_SYS",
+          "target": "ZZU_ITD",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_asset_zzu"
+        },
+        {
+          "source": "THU_FIN",
+          "target": "RFID_CORP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_fin_rfid"
+        },
+        {
+          "source": "THU_FIN",
+          "target": "WIFI_CORP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_fin_wifi"
+        },
+        {
+          "source": "THU_FIN",
+          "target": "ASSET_SYS",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_fin_asset"
+        },
+        {
+          "source": "ZZU_FIN",
+          "target": "RFID_CORP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_zzufin_rfid"
+        },
+        {
+          "source": "ZZU_FIN",
+          "target": "WIFI_CORP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_zzufin_wifi"
+        },
+        {
+          "source": "ZZU_FIN",
+          "target": "ASSET_SYS",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_neg_zzufin_asset"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_regulatory",
+      "topology_type": "STAR",
+      "description": "监管机构与各参与方之间的合规审查星型网络。",
+      "nodes": [
+        "GOV_REG",
+        "THU_ITC",
+        "ZZU_ITD",
+        "RFID_CORP",
+        "WIFI_CORP",
+        "ASSET_SYS"
+      ],
+      "edges": [
+        {
+          "source": "GOV_REG",
+          "target": "THU_ITC",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_reg_thu"
+        },
+        {
+          "source": "GOV_REG",
+          "target": "ZZU_ITD",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_reg_zzu"
+        },
+        {
+          "source": "GOV_REG",
+          "target": "RFID_CORP",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_reg_rfid"
+        },
+        {
+          "source": "GOV_REG",
+          "target": "WIFI_CORP",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_reg_wifi"
+        },
+        {
+          "source": "GOV_REG",
+          "target": "ASSET_SYS",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_reg_asset"
+        }
+      ]
+    }
+  ]
+}
