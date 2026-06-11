@@ -7,8 +7,6 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 
 COPY agent_network/ /app/agent_network/
 COPY agent_server.py /app/
-COPY agent_server_openclaw.py /app/
-COPY agent_server_claude.py /app/
 COPY message_bus.py /app/
 
 # 注意: 使用 docker-compose 部署时，通过 environment 覆盖为 service name:

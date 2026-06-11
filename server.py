@@ -373,6 +373,33 @@ async def execute_skill(req: SkillExecuteRequest):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@app.get("/api/minesweeper/board")
+async def minesweeper_board():
+    """返回扫雷场景的棋盘状态（从 _engine 读取）"""
+    if not _active_skills_module or not hasattr(_active_skills_module, '_engine'):
+        return {"board": None, "error": "扫雷引擎未加载"}
+    eng = _active_skills_module._engine
+    SIZE = getattr(eng, 'SIZE', 9)
+    revealed = eng.revealed
+    board = []
+    for y in range(SIZE):
+        row = []
+        for x in range(SIZE):
+            if revealed[y][x]:
+                row.append(1 if (x, y) in eng.discovered_mines else 0)
+            else:
+                row.append(None)
+        board.append(row)
+    safe_count = sum(1 for y in range(SIZE) for x in range(SIZE) if revealed[y][x] and (x, y) not in eng.discovered_mines)
+    return {
+        "board": board,
+        "discovered_mines": [{"x": k[0], "y": k[1]} for k in eng.discovered_mines.keys()],
+        "game_state": "RUNNING" if safe_count < (SIZE * SIZE - eng.TOTAL_MINES) else "VICTORY",
+        "cells_revealed": safe_count,
+        "completion_percentage": f"{(safe_count / (SIZE * SIZE - eng.TOTAL_MINES)) * 100:.1f}%",
+    }
+
+
 # ═══════════════════════════════════════════════
 # 仿真运行 API — 对应架构文档第三节
 # ═══════════════════════════════════════════════
@@ -672,10 +699,6 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
             stop_reason = f"stalemate_{stalemate_threshold}_silent_rounds"
             break
 
-        # 每轮结束后重置 Agent 状态，停止前端决策/数据流动画
-        for a in AgentRegistry.list_all():
-            a.status = "idle"
-
         time.sleep(0.3)
     else:
         stop_reason = "hard_limit"
@@ -739,7 +762,12 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
     agents: List[AgentDef] = []
     for role_id, role in roles.items():
         instance = containers.get(role_id, {})
-        skills = [s["skill_name"] for s in instance.get("skill_bindings", [])]
+        # 兼容两种技能格式: "skills" (字符串列表) 或 "skill_bindings" (对象列表)
+        raw_skills = instance.get("skills") or instance.get("skill_bindings") or []
+        if raw_skills and isinstance(raw_skills[0], dict):
+            skills = [s["skill_name"] for s in raw_skills]
+        else:
+            skills = raw_skills
         backend = role.get("model_backbone", "brain")
         # Map model_backbone to our backend names
         if backend == "claudecode":
@@ -787,8 +815,8 @@ def _build_scene_from_folder(scene_name: str) -> SceneDefinition:
             if weight is None:
                 weight = 70 if edge.get("paradigm") == "COLLABORATION" else -50
             relationships.append({
-                "from": edge["source"],
-                "to": edge["target"],
+                "from": edge["source"].lower(),
+                "to": edge["target"].lower(),
                 "relation_type": edge.get("paradigm", ""),
                 "value": weight,
                 "can_direct_chat": edge.get("direct_chat", True),
@@ -885,6 +913,16 @@ async def read_scene(scene_name: str):
         raise HTTPException(status_code=404, detail=f"Folder scene '{scene_name}' missing meta_and_roles.json")
     title = files["meta_and_roles"].get("scenario_metadata", {}).get("title", scene_name)
     return {"name": scene_name, "title": title, "format": "folder", "files": files}
+
+
+@app.get("/api/scenes/{scene_name}/panel", response_class=HTMLResponse)
+async def scene_panel(scene_name: str):
+    """返回场景自带的可视化面板 HTML（scenes/{name}/panel.html）"""
+    folder = _SCENES_DIR / scene_name
+    panel_path = folder / "panel.html"
+    if panel_path.exists():
+        return HTMLResponse(content=panel_path.read_text(encoding='utf-8'))
+    return HTMLResponse(content='<html><body style="background:#ECE8DF;color:#6A665F;display:flex;align-items:center;justify-content:center;height:100%;font-family:Inter,sans-serif;font-size:12px">无可视化面板</body></html>')
 
 
 # ═══════════════════════════════════════════════

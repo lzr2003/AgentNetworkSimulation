@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#ECE8DF;font-family:Inter,system-ui,sans-serif;padding:8px;color:#2A2A2A}
+h3{font-size:11px;color:#6A665F;margin-bottom:6px;text-align:center}
+.grid{display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:#D4CCBC;border:1px solid #D4CCBC;width:180px;height:180px;margin:0 auto}
+.cell{background:#B0A89A;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;cursor:default;transition:background 0.2s}
+.cell.revealed-safe{background:#C8D6B8}
+.cell.revealed-safe.n1{color:#5A7A9A}.cell.revealed-safe.n2{color:#6B8A5E}.cell.revealed-safe.n3{color:#C0392B}.cell.revealed-safe.n4{color:#7A6A8A}.cell.revealed-safe.n5{color:#B8783A}
+.cell.mine{background:#C0392B;color:#fff;font-size:12px}
+.status{font-size:9px;color:#6A665F;text-align:center;margin-top:6px}
+</style></head>
+<body>
+<h3>扫雷 9×9</h3>
+<div class="grid" id="grid"></div>
+<div class="status" id="status">等待仿真开始...</div>
+<script>
+const API = '/api';
+const SIZE = 9;
+let board = []; // null=unrevealed, 0=safe, -1=mine
+let adjacentMines = []; // revealed safe cell -> adjacent mine count
+
+function createGrid() {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = 'c' + r + '_' + c;
+      g.appendChild(cell);
+    }
+  }
+}
+
+function updateBoard(data) {
+  if (!data || !data.board) return;
+  board = data.board;
+  const mines = new Set((data.discovered_mines || []).map(m => m.x + ',' + m.y));
+  document.getElementById('status').textContent =
+    (data.game_state || '') + ' | 已揭示: ' + (data.cells_revealed || 0) +
+    ' | 完成: ' + (data.completion_percentage || '0%');
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.getElementById('c' + r + '_' + c);
+      if (!cell) continue;
+      const val = board[r]?.[c];
+      cell.className = 'cell';
+      cell.textContent = '';
+      if (val === 1 || mines.has(c + ',' + r)) {
+        cell.className = 'cell mine';
+        cell.textContent = '💣';
+      } else if (val === 0) {
+        cell.className = 'cell revealed-safe';
+        // Count adjacent mines (simplified: show nothing for now)
+      }
+    }
+  }
+}
+
+createGrid();
+
+// Poll board state every 2s
+setInterval(async () => {
+  try {
+    const r = await fetch(API + '/minesweeper/board');
+    if (r.ok) updateBoard(await r.json());
+  } catch(e) {}
+}, 2000);
+</script>
+</body>
+</html>

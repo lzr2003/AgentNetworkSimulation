@@ -22,13 +22,15 @@ from .llm_parser import get_api_config
 @dataclass
 class Action:
     """Agent 决策后的动作"""
-    type: str  # "send_message" | "search" | "analyze" | "wait" | "plan" | "move_to"
-    target: str = ""       # 消息目标 agent_id
+    type: str  # "send_message" | "search" | "analyze" | "wait" | "plan" | "move_to" | "execute_skill"
+    target: str = ""       # 消息目标 agent_id 或技能名
     content: str = ""      # 消息/动作内容
     reasoning: str = ""    # Agent 的推理过程
     raw_response: str = "" # LLM 原始响应
     target_x: float = -1   # move_to 目标 X
     target_y: float = -1   # move_to 目标 Y
+    skill: str = ""        # execute_skill 的技能名
+    params: Dict[str, Any] = field(default_factory=dict)  # execute_skill 的参数
 
     def to_dict(self):
         d = {
@@ -38,6 +40,9 @@ class Action:
         if self.type == "move_to":
             d["target_x"] = self.target_x
             d["target_y"] = self.target_y
+        if self.type == "execute_skill":
+            d["skill"] = self.skill or self.target
+            d["params"] = self.params
         return d
 
 

@@ -6,7 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 
 COPY agent_network/ /app/agent_network/
-COPY agent_server_openclaw.py /app/
+COPY agent_server.py /app/
 
 # 注意: 使用 docker-compose 部署时，通过 environment 覆盖为 service name:
 #   MESSAGE_BUS_URL=http://message-bus:9000
@@ -21,4 +21,5 @@ ENV SERVER_URL="http://localhost:8000"
 
 EXPOSE 8000
 
-CMD ["python", "agent_server_openclaw.py"]
+ENV AGENT_BACKEND="openclaw"
+CMD ["python", "agent_server.py"]

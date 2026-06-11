@@ -38,9 +38,9 @@ class ContainerRuntime:
     """Agent 容器管理 — 分配 + 动态创建"""
 
     BACKEND_CONFIG = {
-        "brain":       {"image": "agentnetwork-ag-b1",   "cmd": "python agent_server.py",          "prefix": "ag-b"},
-        "claude-code": {"image": "agentnetwork-ag-c1",   "cmd": "python3 agent_server_claude.py",  "prefix": "ag-c"},
-        "openclaw":    {"image": "agentnetwork-ag-o1",   "cmd": "python agent_server_openclaw.py", "prefix": "ag-o"},
+        "brain":       {"image": "agentnetwork-ag-b1",   "cmd": "python agent_server.py",   "prefix": "ag-b"},
+        "claude-code": {"image": "agentnetwork-ag-c1",   "cmd": "python3 agent_server.py",  "prefix": "ag-c"},
+        "openclaw":    {"image": "agentnetwork-ag-o1",   "cmd": "python agent_server.py",   "prefix": "ag-o"},
     }
     DEFAULT_BACKEND = "brain"
     NETWORK_NAME = "an"

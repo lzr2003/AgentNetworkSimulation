@@ -17,7 +17,7 @@ WORKDIR /app
 # Python dependencies for the agent server
 RUN pip install --no-cache-dir --break-system-packages -i https://mirrors.aliyun.com/pypi/simple/ fastapi uvicorn pydantic httpx requests
 
-COPY agent_server_claude.py /app/
+COPY agent_server.py /app/
 COPY agent_network/ /app/agent_network/
 
 # 注意: 使用 docker-compose 部署时，通过 environment 覆盖为 service name:
@@ -33,4 +33,5 @@ ENV SERVER_URL="http://localhost:8000"
 
 EXPOSE 8000
 
-CMD ["python3", "agent_server_claude.py"]
+ENV AGENT_BACKEND="claude-code"
+CMD ["python3", "agent_server.py"]

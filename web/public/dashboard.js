@@ -41,6 +41,7 @@ let agents = [];
 let ws = null;
 let hoveredAgent = null;
 let simRunning = false;
+let draggingId = null;
 let _relationships = [];
 let _lastLogCount = 0;
 
@@ -173,17 +174,6 @@ function drawRelationships(agents, relationships, time) {
     ctx.strokeStyle = color;
     ctx.stroke();
 
-    // ── 关系类型标签 ──
-    if (rel.relation_type) {
-      const mx = (from.sx + to.sx) / 2;
-      const my = (from.sy + to.sy) / 2;
-      ctx.fillStyle = '#88847F';
-      ctx.font = '5px Inter, IBM Plex Sans, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(rel.relation_type, mx, my - 5);
-      ctx.textAlign = 'start';
-    }
-
     // ── 数据流动画：沿连线绘制流动粒子 ──
     const fromKey = rel.from.toLowerCase();
     const toKey = rel.to.toLowerCase();
@@ -255,6 +245,8 @@ function drawAgents(agents, hoveredId, time) {
 
   for (let i = 0; i < n; i++) {
     const [id, pi] = entries[i];
+    // 拖动中的 agent 不参与力模拟
+    if (id === draggingId) continue;
     let fx = 0, fy = 0;
     const neighbors = adj.get(id);
 
@@ -331,6 +323,7 @@ function drawAgents(agents, hoveredId, time) {
 }
 
 function render() {
+  requestAnimationFrame(render);
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
@@ -350,7 +343,6 @@ function render() {
   }
 
   ctx.restore();
-  requestAnimationFrame(render);
 }
 render();
 
@@ -392,19 +384,14 @@ function showTooltip(agent, mx, my) {
   tt.style.top = Math.max(4, ty - 10) + 'px';
 }
 
-canvas?.addEventListener('mousemove', function(e) {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-
+// ── Find agent at screen position ──
+function findAgentAtScreen(mx, my) {
   const mapping = getScreenMapping(agents);
-  if (!mapping.valid) { showTooltip(null, mx, my); return; }
-
+  if (!mapping.valid) return null;
   const dpr = window.devicePixelRatio || 1;
   const canvasW = canvas.width / dpr;
   const rPx = Math.max(6, Math.min(16, canvasW / 40)) + 3;
 
-  let found = null;
   for (let i = agents.length - 1; i >= 0; i--) {
     const a = agents[i];
     if (a.x == null) continue;
@@ -413,12 +400,68 @@ canvas?.addEventListener('mousemove', function(e) {
     const wy = sp ? sp.y : a.y;
     const p = mapping.toScreen(wx, wy);
     const dx = mx - p.sx, dy = my - p.sy;
-    if (Math.sqrt(dx * dx + dy * dy) < rPx) { found = a; break; }
+    if (Math.sqrt(dx * dx + dy * dy) < rPx) return a;
   }
-  showTooltip(found, mx, my);
+  return null;
+}
+
+canvas?.addEventListener('mousedown', function(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const found = findAgentAtScreen(mx, my);
+  if (found) {
+    draggingId = found.agent_id;
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+});
+
+canvas?.addEventListener('mousemove', function(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (draggingId) {
+    // 拖动中：更新 _simState 中的位置
+    const mapping = getScreenMapping(agents);
+    if (mapping.valid) {
+      const world = mapping.toWorld(mx, my);
+      _simState.set(draggingId, { x: world.wx, y: world.wy });
+    }
+    return;
+  }
+
+  const found = findAgentAtScreen(mx, my);
+  canvas.style.cursor = found ? 'grab' : '';
+  if (found !== hoveredAgent) {
+    showTooltip(found, mx, my);
+  }
+});
+
+canvas?.addEventListener('mouseup', function(e) {
+  if (draggingId) {
+    const pos = _simState.get(draggingId);
+    if (pos) {
+      // 同步位置到 agents 数组
+      const agent = agents.find(a => a.agent_id === draggingId);
+      if (agent) { agent.x = Math.round(pos.x); agent.y = Math.round(pos.y); }
+    }
+    draggingId = null;
+    canvas.style.cursor = '';
+  }
 });
 
 canvas?.addEventListener('mouseleave', function() {
+  if (draggingId) {
+    const pos = _simState.get(draggingId);
+    if (pos) {
+      const agent = agents.find(a => a.agent_id === draggingId);
+      if (agent) { agent.x = Math.round(pos.x); agent.y = Math.round(pos.y); }
+    }
+    draggingId = null;
+    canvas.style.cursor = '';
+  }
   showTooltip(null, 0, 0);
 });
 
@@ -522,20 +565,35 @@ async function loadSceneList() {
     const r = await fetch(API + '/scenes');
     const data = await r.json();
     const sel = document.getElementById('scene-selector');
-    if (!sel) return;
-    sel.innerHTML = '';
+    if (sel) sel.innerHTML = '';
     data.scenes.forEach(s => {
-      const opt = document.createElement('option');
       const val = typeof s === 'string' ? s : s.name;
-      opt.value = val;
-      opt.textContent = typeof s === 'string' ? val.replace('.json', '') : val;
-      if (typeof s !== 'string') opt.dataset.format = s.format;
-      sel.appendChild(opt);
+      const label = typeof s === 'string' ? val.replace('.json', '') : val;
+      if (sel) {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = label;
+        if (typeof s !== 'string') opt.dataset.format = s.format;
+        sel.appendChild(opt);
+      }
     });
   } catch(e) { console.error('loadSceneList', e); }
 }
 
 function onSceneSelect() {}
+
+// ============== Float Panel ==============
+function loadScenePanel(name) {
+  const iframe = document.getElementById('fp-iframe');
+  const titleEl = document.getElementById('fp-title');
+  if (iframe && name) {
+    iframe.src = API + '/scenes/' + encodeURIComponent(name) + '/panel';
+  }
+  if (titleEl) titleEl.textContent = name || '场景面板';
+}
+
+function toggleFloatPanel() {
+  document.getElementById('float-panel').classList.toggle('collapsed');
+}
 
 async function runSelectedScene() {
   const sel = document.getElementById('scene-selector');
@@ -549,6 +607,9 @@ async function runSelectedScene() {
   _commEvents.length = 0;
 
   logEntry('scene', '=== ' + name + ' ===');
+
+  // 同步悬浮窗面板
+  loadScenePanel(name);
 
   const body = { scene: name, name: name };
 
