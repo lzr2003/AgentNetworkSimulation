@@ -118,7 +118,7 @@ class ContainerRuntime:
                     "AGENT_BACKEND": backend,
                     "PORT": str(self.INTERNAL_PORT),
                     "MESSAGE_BUS_URL": self.message_bus_url,
-                    "SERVER_URL": "http://server:8000",
+                    "SERVER_URL": os.environ.get("SERVER_URL", "http://srv:8000"),
                 }
                 for key in ("LLM_API_KEY", "LLM_MODEL", "LLM_API_BASE", "LLM_PROVIDER", "ANTHROPIC_API_KEY"):
                     if os.environ.get(key):
@@ -132,17 +132,19 @@ class ContainerRuntime:
                 print(f"[Runtime] Created {auto_name} ({backend}) container={c.id[:12]}")
                 return auto_name
             except Exception as e:
-                print(f"[Runtime] Create failed: {e}, falling back to pool reuse")
-                if running:
-                    self._used_containers.add(running[0])
-                    return running[0]
+                print(f"[Runtime] Dynamic create failed for {backend}: {e}")
+                # 不再回退复用已分配容器（会导致多 Agent 共享同一进程，状态覆盖）
+                raise RuntimeError(
+                    f"Pool exhausted for backend '{backend}': {len(running)} pool containers, "
+                    f"{len([c for c in self._used_containers if c.startswith(prefix)])} already assigned. "
+                    f"Dynamic creation failed: {e}"
+                )
 
-        # 4. 无 Docker，回退：复用已有容器
-        if running:
-            self._used_containers.add(running[0])
-            return running[0]
-
-        raise RuntimeError(f"No {backend} containers available")
+        # 4. 无 Docker SDK 且池已耗尽
+        raise RuntimeError(
+            f"No {backend} containers available and Docker SDK unavailable. "
+            f"Pool size: {len(running)}, all {len(self._used_containers)} in use."
+        )
 
     def assign_agent(self, agent_id: str, role: str, name: str, extra_meta: Dict = None) -> ContainerAgent:
         """从池中分配容器给场景 Agent"""
@@ -150,16 +152,24 @@ class ContainerRuntime:
         if backend not in self.BACKEND_CONFIG:
             backend = self.DEFAULT_BACKEND
 
-        container_name = self._get_or_create_container(backend)
-        url = f"http://{container_name}:{self.INTERNAL_PORT}"
+        port = self.INTERNAL_PORT
+        try:
+            container_name = self._get_or_create_container(backend)
+            url = f"http://{container_name}:{port}"
+            status = "running"
+        except RuntimeError as e:
+            container_name = ""
+            url = ""
+            status = "error"
+            print(f"[Runtime] assign_agent failed for {agent_id} ({name}): {e}")
 
-        # 存储 extra_meta 供 decide_all 时注入 context
         ca = ContainerAgent(
             agent_id=agent_id, name=name, role=role,
-            container_name=container_name, port=self.INTERNAL_PORT,
-            url=url, status="running",
+            container_name=container_name, port=port,
+            url=url, status=status,
         )
         ca._extra_meta = extra_meta or {}
+        ca._assign_error = str(e) if status == "error" else None
         self.agents[agent_id] = ca
 
         return ca
@@ -227,7 +237,7 @@ class ContainerRuntime:
             return
         pool_names = set()
         for cfg in self.BACKEND_CONFIG.values():
-            for i in range(1, 10):  # 池容器: ag-b1~4, ag-c1~3, ag-o1~3
+            for i in range(1, 10):  # 池容器: ag-b1~9, ag-c1~9, ag-o1~9 (range(1,10) 保留1~9)
                 pool_names.add(f"{cfg['prefix']}{i}")
         try:
             for c in self._docker_client.containers.list(all=True):

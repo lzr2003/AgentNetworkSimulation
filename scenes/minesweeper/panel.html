@@ -77,37 +77,40 @@ function updateBoard(data) {
     ' | ' + (data.completion_percentage || '0%');
 }
 
-function placeSoldiers(agents) {
-  if (!agents || !agents.length) return;
-  agents.filter(a => a.agent_id && a.agent_id.startsWith('soldier_'))
-    .forEach((a, i) => {
-      if (a.x == null || a.y == null) return;
-      const col = Math.round(a.x);
-      const row = Math.round(a.y);
-      if (col < 0 || col >= SIZE || row < 0 || row >= SIZE) return;
-      const cell = document.getElementById('c' + row + '_' + col);
-      if (!cell) return;
-      cell.querySelectorAll('.soldier-dot').forEach(d => d.remove());
-      const dot = document.createElement('div');
-      dot.className = 'soldier-dot';
-      dot.style.background = SOLDIER_COLORS[i % SOLDIER_COLORS.length];
-      dot.title = a.name || a.agent_id;
-      const label = document.createElement('span');
-      label.className = 'slabel';
-      label.textContent = a.agent_id.replace('soldier_', '');
-      dot.appendChild(label);
-      cell.appendChild(dot);
-    });
+function placeSoldiers(soldiers) {
+  if (!soldiers) return;
+  const entries = Object.entries(soldiers);
+  entries.forEach(([sid, pos], i) => {
+    if (pos.x == null || pos.y == null) return;
+    const col = pos.x;
+    const row = pos.y;
+    if (col < 0 || col >= SIZE || row < 0 || row >= SIZE) return;
+    const cell = document.getElementById('c' + row + '_' + col);
+    if (!cell) return;
+    // 不重复创建同一士兵的棋子
+    const existing = cell.querySelector('.soldier-dot[data-sid="' + sid + '"]');
+    if (existing) return;
+    const dot = document.createElement('div');
+    dot.className = 'soldier-dot';
+    dot.style.background = SOLDIER_COLORS[i % SOLDIER_COLORS.length];
+    dot.title = sid;
+    dot.setAttribute('data-sid', sid);
+    const label = document.createElement('span');
+    label.className = 'slabel';
+    label.textContent = sid.replace('soldier_', '');
+    dot.appendChild(label);
+    cell.appendChild(dot);
+  });
 }
 
 async function poll() {
   try {
-    const [br, ar] = await Promise.all([
-      fetch(API + '/minesweeper/board'),
-      fetch(API + '/agents')
-    ]);
-    if (br.ok) updateBoard(await br.json());
-    if (ar.ok) placeSoldiers(await ar.json());
+    const br = await fetch(API + '/minesweeper/board');
+    if (br.ok) {
+      const data = await br.json();
+      updateBoard(data);
+      placeSoldiers(data.soldiers);
+    }
   } catch(e) {}
 }
 

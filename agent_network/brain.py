@@ -144,7 +144,7 @@ class Brain:
 
         inbox_text = ""
         if direct_msgs:
-            inbox_text += "## 📬 直接发给你的消息 — 必须回复！\n"
+            inbox_text += "## 📬 直接发给你的消息\n"
             inbox_text += "\n".join(direct_msgs[-10:]) + "\n\n"
         if broadcast_msgs:
             inbox_text += "## 📢 广播消息\n"
@@ -177,7 +177,7 @@ class Brain:
         # 待回复警告
         pending_warning = ""
         if pending_count > 0:
-            pending_warning = f"\n⚠️ 你有 {pending_count} 条未回复的直接消息！本轮必须选择至少一条回复，否则将被视为失职。"
+            pending_warning = f"\n⚠️ 你有 {pending_count} 条未回复的直接消息。执行任务型 skill 后结果会自动回复，不需要单独 send_message。"
 
         prompt = f"""{system}
 
@@ -215,7 +215,7 @@ class Brain:
 ```
 
 行动指南:
-- 这是第{self.turn}轮，必须立即行动！优先 send_message 回复收件箱中的直接消息
+- 这是第{self.turn}轮，必须立即行动！如果收到任务指令（如 move），直接用 execute_skill 执行，结果会自动回复发件人
 - target 必须填 agent_id（如 ceo、cto），不能填中文名
 - 向全体 Agent 广播消息时，target 填 "0.0.0.0"
 - 消息内容要具体、有信息量，至少50字"""

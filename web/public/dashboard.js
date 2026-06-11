@@ -1,15 +1,17 @@
 // ============== Log (must be first) ==============
 let logBuffer = [];
 function logEntry(field, event, overrideTs) {
-const now = new Date();
+const now = new Date(Date.now() + _serverTimeOffset);
 const ts = overrideTs || (now.getHours().toString().padStart(2,'0') + ':' +
            now.getMinutes().toString().padStart(2,'0') + ':' +
            now.getSeconds().toString().padStart(2,'0') + '.' +
            now.getMilliseconds().toString().padStart(3,'0'));
 logBuffer.push({ timestamp: ts, source: 'frontend', field, event });
 if (logBuffer.length > 500) logBuffer.shift();
-renderLogs();
+if (_logFlushTimer) clearTimeout(_logFlushTimer);
+_logFlushTimer = setTimeout(renderLogs, 16); // 合并同帧内的批量调用
 }
+let _logFlushTimer = null;
 function renderLogs() {
 const checked = [...document.querySelectorAll('#log-fields input:checked')].map(cb => cb.dataset.field);
 const container = document.getElementById('log-entries');
@@ -44,10 +46,13 @@ let simRunning = false;
 let draggingId = null;
 let _relationships = [];
 let _lastLogCount = 0;
+let _serverTimeOffset = 0; // ms, 服务端与浏览器时差
 
 // ============== Communication Events (data flow animation) ==============
 const _commEvents = [];
-const COMM_EVENT_TTL = 2000; // 粒子动画持续 2 秒
+const COMM_EVENT_TTL = 4000; // 粒子动画持续 4 秒
+const _TWO_PI = Math.PI * 2;
+const _DASH_PATTERN = [4, 3];
 
 function purgeCommEvents(now) {
   for (let i = _commEvents.length - 1; i >= 0; i--) {
@@ -82,7 +87,18 @@ function resizeCanvas() {
 }
 
 window.addEventListener('resize', resizeCanvas);
-setTimeout(resizeCanvas, 100);
+// 初始尺寸：等待两次布局帧确保 CSS 布局完成后获取准确尺寸
+requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
+// 监听容器布局变化（侧边栏折叠/展开等不触发 window.resize 的场景）
+if (window.ResizeObserver) {
+  const _ro = new ResizeObserver(() => resizeCanvas());
+  const _panel = document.getElementById('canvas-panel');
+  if (_panel) _ro.observe(_panel);
+}
+// 后台标签页暂停渲染循环
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { resizeCanvas(); render(); }
+});
 
 function getScreenMapping(agents) {
   const dpr = window.devicePixelRatio || 1;
@@ -184,7 +200,7 @@ function drawRelationships(agents, relationships, time) {
       const age = now - commOnEdge.timestamp;
       if (age < COMM_EVENT_TTL) {
         const fadeAlpha = 1 - age / COMM_EVENT_TTL;
-        const flowSpeed = 0.04; // px/ms
+        const flowSpeed = 0.012; // px/ms (12px/s)
         ctx.fillStyle = `rgba(90,122,154,${fadeAlpha.toFixed(2)})`;
         // 绘制 3 个流动粒子，均匀分布
         for (let p = 0; p < 3; p++) {
@@ -210,11 +226,11 @@ function drawAgents(agents, hoveredId, time) {
 
   const dpr = window.devicePixelRatio || 1;
   const canvasW = canvas.width / dpr;
-  const r = Math.max(6, Math.min(16, canvasW / 40));
+  const r = Math.max(6, Math.min(16, Math.min(canvasW, canvasH) / 40));
 
   // ── Client-side force simulation (prevent overlap) ──
   const now = time || performance.now();
-  const maxX = 400;
+  const worldSize = Math.min(canvasW, canvasH);
   const margin = r * 2;
 
   // Init new agents
@@ -270,8 +286,8 @@ function drawAgents(agents, hoveredId, time) {
 
     pi.x += fx * damping;
     pi.y += fy * damping;
-    pi.x = Math.max(margin, Math.min(maxX - margin, pi.x));
-    pi.y = Math.max(margin, Math.min(maxX - margin, pi.y));
+    pi.x = Math.max(margin, Math.min(worldSize - margin, pi.x));
+    pi.y = Math.max(margin, Math.min(worldSize - margin, pi.y));
   }
 
   // ── Draw agents ──
@@ -315,7 +331,8 @@ function drawAgents(agents, hoveredId, time) {
 
     // Label
     ctx.fillStyle = '#2A2A2A';
-    ctx.font = '10px Inter, IBM Plex Sans, system-ui, sans-serif';
+    const labelSize = Math.max(9, Math.min(14, canvasW / 60));
+    ctx.font = labelSize + 'px Inter, IBM Plex Sans, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(a.name || a.agent_id, p.sx, p.sy - r - 4);
     ctx.textAlign = 'start';
@@ -323,7 +340,7 @@ function drawAgents(agents, hoveredId, time) {
 }
 
 function render() {
-  requestAnimationFrame(render);
+  if (!document.hidden) requestAnimationFrame(render);
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
@@ -380,7 +397,7 @@ function showTooltip(agent, mx, my) {
   const panelRect = document.getElementById('canvas-panel')?.getBoundingClientRect();
   const tx = mx + (panelRect?.left || 0);
   const ty = my + (panelRect?.top || 0);
-  tt.style.left = Math.min(tx + 16, window.innerWidth - 300) + 'px';
+  tt.style.left = Math.max(0, Math.min(tx + 16, window.innerWidth - 300)) + 'px';
   tt.style.top = Math.max(4, ty - 10) + 'px';
 }
 
@@ -390,7 +407,7 @@ function findAgentAtScreen(mx, my) {
   if (!mapping.valid) return null;
   const dpr = window.devicePixelRatio || 1;
   const canvasW = canvas.width / dpr;
-  const rPx = Math.max(6, Math.min(16, canvasW / 40)) + 3;
+  const rPx = Math.max(6, Math.min(16, Math.min(canvasW, canvasH) / 40)) + 3;
 
   for (let i = agents.length - 1; i >= 0; i--) {
     const a = agents[i];
@@ -475,6 +492,10 @@ const msg = JSON.parse(e.data);
 // ── 实时推送的单条日志 ──
 if (msg.type === 'agent_log' && msg.data) {
     const l = msg.data;
+    // 首次收到时间戳时计算服务端与浏览器时差
+    if (!_serverTimeOffset && l.timestamp) {
+        _serverTimeOffset = new Date(l.timestamp).getTime() - Date.now();
+    }
     const ts = (l.timestamp||'').slice(11,24);
     const from = l.from_agent || l.agent_id || '?';
     const to = l.to_agent || '';
@@ -485,9 +506,19 @@ if (msg.type === 'agent_log' && msg.data) {
     logEntry('agent', msgText, ts);
     _lastLogCount++;
     // ── 记录通信事件，用于数据流动画 ──
-    if ((action === 'send_message' || action === 'broadcast') && status === 'success' && from !== '?' && to) {
-      _commEvents.push({ from: from.toLowerCase(), to: to.toLowerCase(), timestamp: Date.now() });
-      if (_commEvents.length > 20) _commEvents.shift();
+    if (status === 'success' && from !== '?' && to) {
+      if (to === '0.0.0.0') {
+        // 广播：在发送者的所有出边上展示数据流动画
+        for (const rel of _relationships) {
+          if (rel.from.toLowerCase() === from.toLowerCase()) {
+            _commEvents.push({ from: from.toLowerCase(), to: rel.to.toLowerCase(), timestamp: Date.now() });
+          }
+        }
+        if (_commEvents.length > 40) _commEvents.splice(0, _commEvents.length - 40);
+      } else if (action === 'send_message' || action === 'broadcast') {
+        _commEvents.push({ from: from.toLowerCase(), to: to.toLowerCase(), timestamp: Date.now() });
+        if (_commEvents.length > 40) _commEvents.shift();
+      }
     }
     return;
     }

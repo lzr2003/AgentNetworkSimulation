@@ -394,8 +394,16 @@ async def minesweeper_board():
                 row.append(None)
         board.append(row)
     safe_count = sum(1 for y in range(SIZE) for x in range(SIZE) if revealed[y][x] and (x, y) not in eng.discovered_mines)
+    # 收集士兵当前位置
+    soldiers = {}
+    registry = getattr(eng, 'round_action_registry', {})
+    if registry:
+        latest_round = max(registry.keys())
+        for sid, (gx, gy) in registry[latest_round].items():
+            soldiers[sid] = {"x": gx, "y": gy}
     return {
         "board": board,
+        "soldiers": soldiers,
         "discovered_mines": [{"x": k[0], "y": k[1]} for k in eng.discovered_mines.keys()],
         "game_state": "RUNNING" if safe_count < (SIZE * SIZE - eng.TOTAL_MINES) else "VICTORY",
         "cells_revealed": safe_count,
@@ -583,16 +591,37 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     runtime.reset()  # 清理上一轮的容器占用标记，释放池容器
 
     created_cas = []
+    assign_errors = []
     for ad in scene_def.agents:
         ca = runtime.assign_agent(
             agent_id=ad.agent_id, role=ad.role, name=ad.name,
             extra_meta=ad.extra_meta if ad.extra_meta else None,
         )
         created_cas.append((ca, ad.tasks))
-        # 直接给 AgentRegistry 中的 Agent 设置容器 URL
-        agent = AgentRegistry.get(ca.agent_id)
-        if agent:
-            agent.container_url = ca.url
+        if ca.status == "error":
+            assign_errors.append({
+                "agent_id": ca.agent_id, "name": ca.name,
+                "error": getattr(ca, '_assign_error', 'unknown'),
+            })
+        else:
+            # 直接给 AgentRegistry 中的 Agent 设置容器 URL
+            agent = AgentRegistry.get(ca.agent_id)
+            if agent:
+                agent.container_url = ca.url
+
+    # 容器分配结果日志
+    assigned_count = sum(1 for ca, _ in created_cas if ca.status != "error")
+    logger.system("container_pool",
+        f"容器分配完成: {assigned_count}/{len(scene_def.agents)} Agent 分配成功",
+        details={"total_agents": len(scene_def.agents), "assigned": assigned_count,
+                  "errors": assign_errors})
+
+    if assign_errors:
+        # 过滤掉分配失败的 Agent，不参与后续轮次
+        created_cas = [(ca, tasks) for ca, tasks in created_cas if ca.status != "error"]
+        logger.system("container_pool",
+            f"警告: {len(assign_errors)} 个 Agent 分配失败，将被跳过",
+            details={"skipped": [e["agent_id"] for e in assign_errors]})
 
     # ── 容器状态重置（在分配后、注册前，确保上一轮仿真残留已清除）──
     for ca, _ in created_cas:
@@ -687,6 +716,18 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         round_result = runtime.run_round(context)
         results_log.append(round_result)
 
+        # 同步扫雷引擎中的士兵位置到 AgentRegistry
+        if _active_skills_module and hasattr(_active_skills_module, '_engine'):
+            eng = _active_skills_module._engine
+            registry = getattr(eng, 'round_action_registry', {})
+            if registry:
+                latest_round = max(registry.keys())
+                for soldier_id, (gx, gy) in registry[latest_round].items():
+                    agent = AgentRegistry.get(soldier_id)
+                    if agent:
+                        agent.x = float(gx)
+                        agent.y = float(gy)
+
         # 僵局检测：本轮是否有实际消息产生
         decisions = round_result.get("decisions", [])
         messages_sent = sum(
@@ -709,11 +750,15 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     _current_relationships = scene_def.workflow
     registry_agents = [a.get_status() for a in AgentRegistry.list_all()]
     actual_rounds = len(results_log)
+    runtime_agent_count = len(runtime.agents)
 
     # 写入仿真完成日志
     logger.system("simulation_complete",
-        f"仿真完成: {scene_def.scene_name} | {actual_rounds}轮 | {len(registry_agents)} Agent | {stop_reason}",
-        details={"scene": scene_def.scene_name, "rounds": actual_rounds, "agent_count": len(registry_agents), "stop_reason": stop_reason})
+        f"仿真完成: {scene_def.scene_name} | {actual_rounds}轮 | "
+        f"{runtime_agent_count}/{len(scene_def.agents)} Agent | {stop_reason}",
+        details={"scene": scene_def.scene_name, "rounds": actual_rounds,
+                  "agent_count": runtime_agent_count, "agent_defined": len(scene_def.agents),
+                  "stop_reason": stop_reason})
 
     return {
         "simulation_name": scene_def.scene_name,

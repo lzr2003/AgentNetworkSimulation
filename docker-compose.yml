@@ -82,6 +82,12 @@ services:
   ag-o1: { <<: *openclaw, container_name: ag-o1 }
   ag-o2: { <<: *openclaw, container_name: ag-o2 }
   ag-o3: { <<: *openclaw, container_name: ag-o3 }
+  ag-o4: { <<: *openclaw, container_name: ag-o4 }
+  ag-o5: { <<: *openclaw, container_name: ag-o5 }
+  ag-o6: { <<: *openclaw, container_name: ag-o6 }
+  ag-o7: { <<: *openclaw, container_name: ag-o7 }
+  ag-o8: { <<: *openclaw, container_name: ag-o8 }
+  ag-o9: { <<: *openclaw, container_name: ag-o9 }
 
 networks:
   an: { driver: bridge, name: an }

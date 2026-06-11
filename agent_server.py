@@ -243,7 +243,7 @@ def _build_system_prompt(context: dict = None) -> str:
 {skills_text}
 行为准则：
 - 必须立即采取具体行动，绝对不能wait！
-- 有直接消息必须回复！优先 send_message
+- 有直接消息时直接用 execute_skill 执行任务，结果会自动回复发件人
 - send_message 的 target 必须用 agent_id（如 ceo、cto）
 - 有技能时积极使用 execute_skill
 - 用中文回复"""
@@ -265,11 +265,11 @@ def _build_user_message(inbox_msgs: list, context: dict = None) -> str:
 
     inbox_text = ""
     pending = len(direct_msgs)
-    if direct_msgs: inbox_text += "## 📬 直接发给你的消息 — 必须回复！\n" + "\n".join(direct_msgs[-10:]) + "\n\n"
+    if direct_msgs: inbox_text += "## 📬 直接发给你的消息\n" + "\n".join(direct_msgs[-10:]) + "\n\n"
     if broadcast_msgs: inbox_text += "## 📢 广播消息\n" + "\n".join(broadcast_msgs[-5:]) + "\n\n"
     if system_msgs: inbox_text += "## ⚡ 系统通知\n" + "\n".join(system_msgs[-3:]) + "\n\n"
     if not inbox_text: inbox_text = "（收件箱为空 — 主动发起对话或分析局势）\n"
-    pending_warning = f"\n⚠️ 你有 {pending} 条未回复的直接消息！本轮必须回复！" if pending > 0 else ""
+    pending_warning = f"\n⚠️ 你有 {pending} 条未回复的直接消息。执行 skill 后会自动回复。" if pending > 0 else ""
 
     return f"""## 当前回合: {turn}
 
@@ -278,7 +278,7 @@ def _build_user_message(inbox_msgs: list, context: dict = None) -> str:
 
 {inbox_text}{pending_warning}
 
-请做出本轮决策。如有直接消息必须回复，有技能时积极使用 execute_skill。"""
+请做出本轮决策。收到任务指令直接用 execute_skill 执行，结果会自动回复发件人。"""
 
 
 def _call_openclaw(system_prompt: str, user_message: str) -> dict:
@@ -334,11 +334,11 @@ def _build_claude_prompt(inbox_msgs: list, context: dict = None) -> str:
         else: direct_msgs.append(txt)
     inbox_text = ""
     pending = len(direct_msgs)
-    if direct_msgs: inbox_text += "## 📬 直接发给你的消息 — 必须回复！\n" + "\n".join(direct_msgs[-10:]) + "\n\n"
+    if direct_msgs: inbox_text += "## 📬 直接发给你的消息\n" + "\n".join(direct_msgs[-10:]) + "\n\n"
     if broadcast_msgs: inbox_text += "## 📢 广播消息\n" + "\n".join(broadcast_msgs[-5:]) + "\n\n"
     if system_msgs: inbox_text += "## ⚡ 系统通知\n" + "\n".join(system_msgs[-3:]) + "\n\n"
     if not inbox_text: inbox_text = "（收件箱为空 — 主动发起对话）\n"
-    pending_warning = f"\n⚠️ 你有 {pending} 条未回复的直接消息！必须回复！" if pending > 0 else ""
+    pending_warning = f"\n⚠️ 你有 {pending} 条未回复的直接消息。执行 skill 后会自动回复。" if pending > 0 else ""
 
     return f"""{system}
 
@@ -361,7 +361,7 @@ def _build_claude_prompt(inbox_msgs: list, context: dict = None) -> str:
 {{"reasoning": "推理", "action": "send_message|execute_skill|wait", "target": "目标agent_id或技能名", "content": "消息内容或技能参数"}}
 ```
 重要规则:
-- 必须立即采取具体行动！如果收件箱有直接发给你的消息，本轮必须回复
+- 必须立即采取具体行动！有直接消息时推荐 execute_skill，结果会自动回复发件人
 - target 必须用 agent_id（如 ceo、cto），不能用中文名
 - 向全体 Agent 广播消息时，target 填 "0.0.0.0"
 - 有技能时积极使用 execute_skill
@@ -625,6 +625,27 @@ async def act():
             result["skill_error"] = str(e)
             _log_agent("act", f"技能调用异常: {skill_name} | {e}",
                        action_type="execute_skill", target=skill_name, status="failed")
+
+    # ── execute_skill 后自动转发结果给最近发件人 ──
+    if action_type == "execute_skill" and result.get("skill_result"):
+        skill_ret = result["skill_result"]
+        is_error = isinstance(skill_ret, dict) and skill_ret.get("status") == "error"
+        if not is_error:
+            recent_sender = None
+            src = _agent.inbox if _agent else inbox
+            for msg in reversed(src):
+                if msg.get("type") in ("direct",) and msg.get("from"):
+                    sender = msg["from"]
+                    if sender not in ("系统", "self", _current_effective_name, _current_effective_id):
+                        recent_sender = sender
+                        break
+            if recent_sender:
+                ret_str = json.dumps(skill_ret, ensure_ascii=False)
+                auto_msg = f"[{skill_name} 执行结果]\n{ret_str}"
+                ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name,
+                                             recent_sender, auto_msg, "", "")
+                _log_agent("act", auto_msg, action_type="send_message", target=recent_sender,
+                           content=auto_msg, status="success" if ok else "failed")
 
     # ── LOG_COLLECTOR ──
     if LOG_COLLECTOR_URL:
