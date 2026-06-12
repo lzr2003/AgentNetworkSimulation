@@ -208,7 +208,7 @@ body::after{
   text-shadow:0 0 12px rgba(53,246,255,0.45);
 }
 .section-title .toggle{margin-left:auto;cursor:pointer;color:var(--magenta)}.section-title .toggle:hover{color:var(--text);text-shadow:var(--glow-pink)}
-.control-bar{gap:8px}
+.control-bar{gap:8px}.stop-btn{margin-left:4px}
 .scene-select,.log-controls select{
   min-width:0;
   width:150px;

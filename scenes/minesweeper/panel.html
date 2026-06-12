@@ -1,42 +1,135 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8"><style>
+/* ═══════════════════════════════════════════════
+   Scene Panel — 赛博霓虹扫雷态势板
+   ═══════════════════════════════════════════════ */
+:root {
+  --bg: #030713;
+  --panel: rgba(8,16,34,0.85);
+  --border: rgba(55,242,255,0.28);
+  --text: #DDF7FF;
+  --muted: #7FA5B8;
+  --cyan: #35F6FF;
+  --magenta: #FF2ED4;
+  --green: #35FF9D;
+  --yellow: #FFE45E;
+  --orange: #FF9F43;
+  --red: #FF3B67;
+  --purple: #A56CFF;
+  --glow-cyan: 0 0 14px rgba(53,246,255,0.38), 0 0 34px rgba(53,246,255,0.16);
+  --glow-pink: 0 0 14px rgba(255,46,212,0.34), 0 0 34px rgba(255,46,212,0.14);
+}
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#ECE8DF;font-family:Inter,system-ui,sans-serif;color:#2A2A2A}
-body{display:flex;flex-direction:column;padding:4px 6px}
-h3{font-size:11px;color:#6A665F;text-align:center;flex-shrink:0}
-.board-wrap{display:flex;align-items:center;justify-content:center;position:relative}
-.grid{display:grid;grid-template-columns:repeat(9,24px);grid-template-rows:repeat(9,24px);gap:1px;background:#B0A89A;border:1px solid #B0A89A;border-radius:2px;overflow:hidden}
-.cell{display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;position:relative;transition:background 0.3s}
-.cell.mine{background:#C0392B;font-size:14px}
-.cell.unknown{background:#8B8475}
-.cell.safe-0{background:#C8D6B8}.cell.safe-1{background:#A8C09A;color:#2A5A2A}
-.cell.safe-2{background:#8CB07A;color:#1A4A1A}.cell.safe-3{background:#D4A860;color:#5A3A10}
-.cell.safe-4{background:#C08040;color:#FFF}.cell.safe-5{background:#B04030;color:#FFF}
-.cell.safe-6{background:#902020;color:#FFF}.cell.safe-7{background:#701010;color:#FFF}
-.cell.safe-8{background:#500000;color:#FFF}
-.soldier-dot{position:absolute;right:1px;bottom:1px;width:10px;height:10px;border-radius:50%;border:1px solid #FFF;box-shadow:0 1px 2px rgba(0,0,0,0.3);z-index:2;pointer-events:none;display:flex;align-items:center;justify-content:center}
-.soldier-dot .slabel{font-size:5px;color:#FFF;font-weight:700;text-shadow:0 0 2px rgba(0,0,0,0.5)}
-.status{font-size:10px;color:#6A665F;text-align:center;margin-top:3px;flex-shrink:0;line-height:1.3}
-.legend{display:flex;gap:6px;justify-content:center;font-size:10px;color:#6A665F;margin-top:2px;flex-shrink:0;flex-wrap:wrap}
-.legend span{display:flex;align-items:center;gap:3px}
-.ldot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(53,246,255,0.08), transparent 50%),
+    var(--bg);
+  font-family:'Inter','IBM Plex Sans',system-ui,sans-serif;
+  color:var(--text);
+}
+body{
+  display:flex;flex-direction:column;
+  padding:6px 8px;gap:4px;
+}
+
+/* Title — HUD style */
+.hud-title{
+  font-family:'JetBrains Mono','IBM Plex Mono',monospace;
+  font-size:0.58rem;letter-spacing:0.18em;
+  color:var(--cyan);text-shadow:var(--glow-cyan);
+  text-align:center;flex-shrink:0;
+  text-transform:uppercase;
+}
+
+/* Board area */
+.board-wrap{
+  display:flex;align-items:center;justify-content:center;
+  flex:1;min-height:0;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(9,minmax(18px,28px));
+  grid-template-rows:repeat(9,minmax(18px,28px));
+  gap:1px;
+  background:rgba(53,246,255,0.18);
+  border:1px solid rgba(53,246,255,0.35);
+  border-radius:2px;overflow:hidden;
+  box-shadow:0 0 20px rgba(53,246,255,0.12),inset 0 0 20px rgba(0,0,0,0.4);
+}
+
+/* Cells */
+.cell{
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-weight:700;
+  position:relative;transition:background 0.25s, box-shadow 0.25s;
+}
+.cell.unknown{background:rgba(22,42,76,0.6);box-shadow:inset 0 0 4px rgba(53,246,255,0.06)}
+.cell.mine{
+  background:rgba(255,59,103,0.55);
+  box-shadow:inset 0 0 10px rgba(255,59,103,0.4);
+  font-size:13px;text-shadow:0 0 6px rgba(255,59,103,0.7);
+}
+.cell.safe-0{background:rgba(53,255,157,0.25);color:var(--green)}
+.cell.safe-1{background:rgba(53,255,157,0.35);color:#1aff8c;text-shadow:0 0 4px rgba(53,255,157,0.4)}
+.cell.safe-2{background:rgba(77,141,255,0.35);color:#80b3ff;text-shadow:0 0 4px rgba(77,141,255,0.4)}
+.cell.safe-3{background:rgba(255,228,94,0.35);color:var(--yellow);text-shadow:0 0 4px rgba(255,228,94,0.4)}
+.cell.safe-4{background:rgba(255,159,67,0.45);color:#fff}
+.cell.safe-5{background:rgba(255,79,163,0.45);color:#fff}
+.cell.safe-6{background:rgba(255,59,103,0.55);color:#fff}
+.cell.safe-7{background:rgba(255,46,212,0.55);color:#fff}
+.cell.safe-8{background:rgba(165,108,255,0.55);color:#fff}
+
+/* Soldier dots */
+.soldier-dot{
+  position:absolute;right:1px;bottom:1px;
+  width:10px;height:10px;border-radius:50%;
+  border:1px solid rgba(255,255,255,0.7);
+  box-shadow:0 0 6px rgba(53,246,255,0.5);
+  z-index:2;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.soldier-dot .slabel{
+  font-size:5px;color:#fff;font-weight:700;
+  text-shadow:0 0 3px rgba(0,0,0,0.7);
+}
+
+/* Status */
+.status{
+  font-family:'JetBrains Mono','IBM Plex Mono',monospace;
+  font-size:0.6rem;color:var(--muted);
+  text-align:center;flex-shrink:0;line-height:1.4;
+  text-shadow:0 0 8px rgba(53,246,255,0.2);
+}
+.status .val{color:var(--cyan);font-weight:600}
+
+/* Legend */
+.legend{
+  display:flex;gap:8px;justify-content:center;
+  font-family:'JetBrains Mono','IBM Plex Mono',monospace;
+  font-size:0.55rem;color:var(--muted);
+  flex-shrink:0;flex-wrap:wrap;
+  letter-spacing:0.04em;
+}
+.legend span{display:flex;align-items:center;gap:4px}
+.ldot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
 </style></head>
 <body>
-<h3>扫雷 9×9</h3>
+<div class="hud-title">◈ MINESWEEPER 9×9 ◈</div>
 <div class="board-wrap">
   <div class="grid" id="grid"></div>
 </div>
 <div class="status" id="status">等待仿真开始...</div>
 <div class="legend">
-  <span><span class="ldot" style="background:#8B8475"></span>未探</span>
-  <span><span class="ldot" style="background:#C8D6B8"></span>安全</span>
-  <span><span class="ldot" style="background:#C0392B"></span>地雷</span>
+  <span><span class="ldot" style="background:rgba(22,42,76,0.8);color:rgba(53,246,255,0.5)"></span>未探</span>
+  <span><span class="ldot" style="background:rgba(53,255,157,0.4);color:var(--green)"></span>安全</span>
+  <span><span class="ldot" style="background:rgba(255,59,103,0.7);color:var(--red)"></span>地雷</span>
   <span>数字=相邻雷数</span>
 </div>
 <script>
 const API = '/api';
 const SIZE = 9;
-const SOLDIER_COLORS = ['#5A7A9A','#6B8A5E','#B8783A','#7A6A8A','#C0392B','#2E86C1','#D4AC0D','#1ABC9C','#E67E22'];
+const SOLDIER_COLORS = ['#35F6FF','#35FF9D','#FFE45E','#FF2ED4','#FF3B67','#4D8DFF','#FF9F43','#A56CFF','#FF4FA3'];
 
 function createGrid() {
   const g = document.getElementById('grid');
@@ -72,9 +165,8 @@ function updateBoard(data) {
       }
     }
   }
-  document.getElementById('status').textContent =
-    (data.game_state || '') + ' | 已揭示: ' + (data.cells_revealed || 0) +
-    ' | ' + (data.completion_percentage || '0%');
+  document.getElementById('status').innerHTML =
+    '<span class=val>' + (data.game_state || '') + '</span> | 已揭示 <span class=val>' + (data.cells_revealed || 0) + '</span> | <span class=val>' + (data.completion_percentage || '0%') + '</span>';
 }
 
 function placeSoldiers(soldiers) {
@@ -87,12 +179,12 @@ function placeSoldiers(soldiers) {
     if (col < 0 || col >= SIZE || row < 0 || row >= SIZE) return;
     const cell = document.getElementById('c' + row + '_' + col);
     if (!cell) return;
-    // 不重复创建同一士兵的棋子
     const existing = cell.querySelector('.soldier-dot[data-sid="' + sid + '"]');
     if (existing) return;
     const dot = document.createElement('div');
     dot.className = 'soldier-dot';
     dot.style.background = SOLDIER_COLORS[i % SOLDIER_COLORS.length];
+    dot.style.boxShadow = '0 0 8px ' + SOLDIER_COLORS[i % SOLDIER_COLORS.length];
     dot.title = sid;
     dot.setAttribute('data-sid', sid);
     const label = document.createElement('span');
@@ -103,6 +195,7 @@ function placeSoldiers(soldiers) {
   });
 }
 
+let _pollTimer = null;
 async function poll() {
   try {
     const br = await fetch(API + '/minesweeper/board');
@@ -110,12 +203,19 @@ async function poll() {
       const data = await br.json();
       updateBoard(data);
       placeSoldiers(data.soldiers);
+      // 游戏结束或仿真停止后停止轮询
+      if (data.game_state && data.game_state !== 'RUNNING') {
+        if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+      }
     }
-  } catch(e) {}
+  } catch(e) {
+    // 服务器不可用时停止轮询
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  }
 }
 
 createGrid();
-setInterval(poll, 2000);
+_pollTimer = setInterval(poll, 500);
 poll();
 </script>
 </body>

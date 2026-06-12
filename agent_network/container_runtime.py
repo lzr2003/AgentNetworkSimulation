@@ -154,15 +154,17 @@ class ContainerRuntime:
             backend = self.DEFAULT_BACKEND
 
         port = self.INTERNAL_PORT
+        assign_error = None
         try:
             container_name = self._get_or_create_container(backend)
             url = f"http://{container_name}:{port}"
             status = "running"
-        except RuntimeError as e:
+        except RuntimeError as exc:
             container_name = ""
             url = ""
             status = "error"
-            print(f"[Runtime] assign_agent failed for {agent_id} ({name}): {e}")
+            assign_error = str(exc)
+            print(f"[Runtime] assign_agent failed for {agent_id} ({name}): {exc}")
 
         ca = ContainerAgent(
             agent_id=agent_id, name=name, role=role,
@@ -170,7 +172,7 @@ class ContainerRuntime:
             url=url, status=status,
         )
         ca._extra_meta = extra_meta or {}
-        ca._assign_error = str(e) if status == "error" else None
+        ca._assign_error = assign_error
         self.agents[agent_id] = ca
 
         return ca

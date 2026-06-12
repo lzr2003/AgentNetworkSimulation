@@ -35,6 +35,7 @@ SENSITIVE_KEYS = {
 EXCLUDED_PATHS = {
     "/api/logs/ingest",  # 避免递归
     "/api/logs/agent",    # 日志上报自身不计入流量
+    "/api/minesweeper",   # UI 轮询，非容器间通信
     "/ws",                # WebSocket 不记录
     "/static",            # 静态资源
     "/health",            # 健康检查

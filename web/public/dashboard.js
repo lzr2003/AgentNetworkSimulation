@@ -1283,6 +1283,17 @@ async function runSelectedScene() {
     .finally(() => { simRunning = false; });
 }
 
+async function stopSimulation() {
+  if (!simRunning) { logEntry('scene', '没有正在运行的仿真'); return; }
+  logEntry('scene', '⏹ 正在停止仿真...');
+  try {
+    const r = await fetch(API + '/simulations/stop', { method: 'POST' });
+    if (r.ok) logEntry('scene', '已发送停止请求，当前轮次结束后停止');
+  } catch(e) {
+    logEntry('scene', '停止请求失败: ' + e.message);
+  }
+}
+
 function togglePanel(id) { document.getElementById(id).classList.toggle('minimized'); }
 
 // ============== Start ==============

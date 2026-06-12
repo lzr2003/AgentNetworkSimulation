@@ -130,6 +130,7 @@ service_state = {
     "simulations_run": 0,
     "active_engine": None,
 }
+_simulation_stop_requested = False  # 仿真停止标志
 
 _current_relationships: List[Dict[str, Any]] = []  # 当前关系链
 _termination_config: Dict[str, int] = {"max_rounds": 10, "stalemate_rounds": 3}  # 终止条件默认值
@@ -689,7 +690,13 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     silent_rounds = 0
     stop_reason = "hard_limit"
 
+    global _simulation_stop_requested
+    _simulation_stop_requested = False
     for round_num in range(MAX_ROUNDS):
+        if _simulation_stop_requested:
+            stop_reason = "user_stopped"
+            logger.system("simulation_stopped", "用户手动停止仿真", details={"round": round_num + 1})
+            break
         current_turn = round_num + 1
 
         # 检查事件触发
@@ -935,6 +942,14 @@ async def launch_simulation():
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _launch_containers, _pending_config, _pending_scene_def)
     return result
+
+
+@app.post("/api/simulations/stop")
+async def stop_simulation():
+    """停止正在运行的仿真"""
+    global _simulation_stop_requested
+    _simulation_stop_requested = True
+    return {"status": "stop_requested"}
 
 
 # ═══════════════════════════════════════════════
