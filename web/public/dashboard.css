@@ -39,7 +39,8 @@ body{font-family:'Inter','IBM Plex Sans',system-ui,sans-serif;background:var(--b
 .log-entries{flex:1;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:0.68rem;padding:0.3rem}
 .log-entry{padding:1px 4px;border-bottom:1px solid rgba(0,0,0,0.04);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;cursor:pointer}.log-entry:hover{background:rgba(107,138,94,0.08)}.log-entry.expanded{white-space:normal;word-break:break-all;overflow:visible;text-overflow:unset;max-width:none;background:rgba(107,138,94,0.12)}
 .log-entry .ts{color:var(--gray)}.log-entry .lv{font-weight:600}
-.log-entry .ev{color:var(--text)}
+.lv.lv-err{color:var(--red)}.lv.lv-warn{color:var(--orange)}
+.log-entry .ev{color:var(--text)}.log-entry .ev-detail{color:var(--gray);font-style:italic}
 .minimized{flex:0!important;min-height:0!important}.minimized *{display:none!important}
 @media(max-width:900px){.app{flex-direction:column}.canvas-panel{flex:2;min-height:50vh}.side-panel{flex:1;max-width:100%;flex-direction:column}.log-viewer{flex:1}}
 .log-dropdown{position:relative;display:inline-block}

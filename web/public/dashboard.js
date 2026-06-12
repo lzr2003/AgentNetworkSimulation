@@ -1,4 +1,91 @@
 // ============== Log (must be first) ==============
+// ── 归一化：将新旧格式统一为前端展示模型 ──
+const _seenLogKeys = new Set();  // 去重：session_id+seq 或复合 key
+const MAX_SEEN_KEYS = 2000;
+
+function normalizeLogRecord(record, origin) {
+  // origin: 'frontend' (本地产生) | 'ws_agent_log' | 'ws_log_entries' | 'ws_packets'
+  const ts = (record.timestamp || '').slice(11, 24) || '';
+  const cat = record.category || '';
+  const src = record.source || '';
+  const evt = record.event || '';
+
+  // ── 生成去重 key ──
+  let dedupKey = null;
+  if (record.session_id && record.seq) {
+    dedupKey = record.session_id + '|' + record.seq;
+  }
+  if (!dedupKey && origin !== 'frontend') {
+    // 兼容旧格式：时间+来源+事件+actor+message 组合
+    const actorId = (record.actor || {}).id || record.agent_id || '';
+    dedupKey = [ts, src || origin, evt, actorId, (record.message || '').slice(0, 40)].join('|');
+  }
+  if (dedupKey && _seenLogKeys.has(dedupKey)) return null;
+  if (dedupKey) {
+    _seenLogKeys.add(dedupKey);
+    if (_seenLogKeys.size > MAX_SEEN_KEYS) {
+      const iter = _seenLogKeys.values();
+      for (let i = 0; i < 500; i++) _seenLogKeys.delete(iter.next().value);
+    }
+  }
+
+  // ── 统一展示模型 ──
+  const result = { timestamp: ts, raw: record, origin };
+
+  // 分类映射
+  if (cat === 'frontend' || src === 'frontend' || origin === 'frontend') {
+    result.field = 'frontend';
+  } else if (cat === 'communication' || evt === 'agent_message') {
+    result.field = 'message';
+  } else if (cat === 'agent_behavior' || evt === 'decide' || evt === 'act' || evt === 'agent_action' || evt === 'agent_decide') {
+    result.field = 'agent';
+  } else if (evt === 'event_trigger' || evt === 'session_start' || evt === 'simulation_complete' || cat === 'lifecycle') {
+    result.field = 'scene';
+  } else if (record.level === 'ERROR') {
+    result.field = 'system';
+  } else {
+    result.field = 'system';
+  }
+
+  result.level = record.level || 'INFO';
+  result.source = src || origin || 'unknown';
+  result.event = evt || '';
+  result.actor = (record.actor || {}).id || record.agent_id || record.from_agent || '';
+  result.target = (record.target || {}).id || record.to_agent || '';
+  result.action = (record.action || {}).name || record.action || '';
+  result.status = (record.action || {}).status || record.action_status || '';
+
+  // ── 生成展示文案 ──
+  const payload = record.payload || {};
+  const details = record.details || {};
+  const network = record.network || {};
+
+  if (result.field === 'message') {
+    const from = result.actor || (record.details || {}).from || (record.network || {}).agent_from || '';
+    const to = result.target || (record.details || {}).to || (record.network || {}).agent_to || '';
+    const content = payload.content || (record.details || {}).content || record.message || '';
+    result.eventText = (from ? from + ' → ' + to : record.message || '');
+    result.detailText = content.length > 200 ? content.slice(0, 200) + '…' : content;
+  } else if (result.field === 'agent') {
+    const st = result.status;
+    const stIcon = st === 'success' ? '✅' : st === 'failed' ? '❌' : st === 'decided' ? '💭' : '➡️';
+    result.eventText = result.actor + ' ' + stIcon + ' ' + (result.action || result.event);
+    result.detailText = record.message || payload.content || (record.details || {}).detail || '';
+  } else if (result.field === 'scene') {
+    result.eventText = (evt === 'event_trigger' ? '⚡ ' : '') + (record.message || '');
+    result.detailText = '';
+  } else if (result.field === 'system' && result.level === 'ERROR') {
+    result.eventText = '❌ ' + (result.actor || '') + ' | ' + (record.message || '');
+    result.detailText = '';
+  } else {
+    result.eventText = record.message || evt || '';
+    result.detailText = '';
+  }
+
+  return result;
+}
+
+// ── 本地前端日志（写入内存 + 上报后端） ──
 let logBuffer = [];
 let _logIngestQueue = [];
 let _logIngestTimer = null;
@@ -8,11 +95,14 @@ const ts = overrideTs || (now.getHours().toString().padStart(2,'0') + ':' +
            now.getMinutes().toString().padStart(2,'0') + ':' +
            now.getSeconds().toString().padStart(2,'0') + '.' +
            now.getMilliseconds().toString().padStart(3,'0'));
-logBuffer.push({ timestamp: ts, source: 'frontend', field, event });
+const rec = { timestamp: ts, field, event, source: 'frontend', origin: 'frontend',
+              eventText: event, detailText: '', level: 'INFO', actor: '', target: '',
+              action: '', status: '', raw: null };
+logBuffer.push(rec);
 if (logBuffer.length > 500) logBuffer.shift();
 if (_logFlushTimer) clearTimeout(_logFlushTimer);
-_logFlushTimer = setTimeout(renderLogs, 16); // 合并同帧内的批量调用
-// 异步上报到后端全局日志（最多每 2 秒批量发送一次）
+_logFlushTimer = setTimeout(renderLogs, 16);
+// 异步上报到后端全局日志
 _logIngestQueue.push({
   timestamp: now.toISOString(),
   source: 'frontend',
@@ -25,7 +115,6 @@ if (!_logIngestTimer) {
   _logIngestTimer = setTimeout(() => {
     const batch = _logIngestQueue.splice(0);
     _logIngestTimer = null;
-    // 逐条发送（保证每条都进入 global.jsonl）
     for (const r of batch) {
       fetch('/api/logs/ingest', {
         method: 'POST',
@@ -50,9 +139,13 @@ container.querySelectorAll('.log-entry.expanded').forEach(el => {
 let entries = logBuffer.filter(e => checked.includes(e.field));
 const countEl = document.getElementById('log-count');
 if (countEl) countEl.textContent = entries.length;
-container.innerHTML = entries.slice(-200).map(e =>
-'<div class=log-entry onclick="this.classList.toggle(\'expanded\')"><span class=ts>' + e.timestamp + '</span> <span class="lv lv-' + e.field + '">' + e.field + '</span> <span class=ev>' + e.event + '</span></div>'
-).join('') || '<div class=log-entry><span class=ts>--</span> <span class=ev>无日志</span></div>';
+container.innerHTML = entries.slice(-200).map(e => {
+  const lvl = e.level === 'ERROR' ? ' lv-err' : e.level === 'WARN' ? ' lv-warn' : '';
+  const evHtml = e.field === 'message'
+    ? '<span class=ev>' + e.eventText + ' | <span class=ev-detail>' + e.detailText + '</span></span>'
+    : '<span class=ev>' + e.eventText + (e.detailText ? ' | ' + e.detailText : '') + '</span>';
+  return '<div class=log-entry onclick="this.classList.toggle(\'expanded\')"><span class=ts>' + e.timestamp + '</span> <span class="lv lv-' + e.field + lvl + '">' + e.field + '</span> ' + evHtml + '</div>';
+}).join('') || '<div class=log-entry><span class=ts>--</span> <span class=ev>无日志</span></div>';
 container.querySelectorAll('.log-entry').forEach(el => {
   const key = el.querySelector('.ev')?.textContent + '|' + el.querySelector('.ts')?.textContent;
   if (expandedTexts.has(key)) el.classList.add('expanded');
@@ -781,29 +874,45 @@ ws = new WebSocket(proto + '//' + location.host + '/ws');
 ws.onopen = () => { ws.send('all'); logEntry('frontend', 'WebSocket 已连接'); };
 ws.onmessage = (e) => {
 const msg = JSON.parse(e.data);
-// ── 实时推送的单条日志 ──
+// ── 实时推送的单条日志（兼容旧 agent_log 缓冲） ──
 if (msg.type === 'agent_log' && msg.data) {
     const l = msg.data;
-    // 首次收到时间戳时计算服务端与浏览器时差
     if (!_serverTimeOffset && l.timestamp) {
         _serverTimeOffset = new Date(l.timestamp).getTime() - Date.now();
     }
-    const ts = (l.timestamp||'').slice(11,24);
+    // 兼容旧格式 → 归一化
+    const norm = normalizeLogRecord({
+      timestamp: l.timestamp || '',
+      level: l.level || 'INFO',
+      source: 'agent',
+      category: (l.event === 'act' || l.event === 'decide') ? 'agent_behavior' : 'system',
+      event: l.event || '',
+      actor: { id: l.from_agent || l.agent_id || '' },
+      target: { id: l.to_agent || '' },
+      action: { name: l.action || '', status: l.action_status || '' },
+      message: l.detail || '',
+      agent_id: l.agent_id,
+      from_agent: l.from_agent,
+      to_agent: l.to_agent,
+      details: { detail: l.detail, action: l.action, action_status: l.action_status },
+    }, 'ws_agent_log');
+    if (norm) {
+      logBuffer.push(norm);
+      if (logBuffer.length > 500) logBuffer.shift();
+      if (_logFlushTimer) clearTimeout(_logFlushTimer);
+      _logFlushTimer = setTimeout(renderLogs, 16);
+      _lastLogCount++;
+    }
+    // ── 记录通信事件，用于报文轨迹动画 ──
+    const status = l.action_status || '';
     const from = l.from_agent || l.agent_id || '?';
     const to = l.to_agent || '';
     const action = l.action || l.event || '?';
-    const status = l.action_status || '';
-    const stIcon = status === 'success' ? '✅' : status === 'failed' ? '❌' : status === 'decided' ? '💭' : '➡️';
-    const msgText = from + ' ' + stIcon + ' ' + action + (to && to !== '-' ? ' → ' + to : '') + ' | ' + (l.detail||'');
-    logEntry('agent', msgText, ts);
-    _lastLogCount++;
-    // ── 记录通信事件，用于报文轨迹动画 ──
     if (status === 'success' && from !== '?' && to) {
       if (action === 'send_message') {
         pushCommEvent(from.toLowerCase(), to.toLowerCase(), false);
       } else if (action === 'broadcast') {
         if (to === '0.0.0.0') {
-          // 广播：在发送者的所有边上展示轨迹（双向）
           for (const rel of _relationships) {
             const rf = rel.from.toLowerCase();
             const rt = rel.to.toLowerCase();
@@ -829,7 +938,6 @@ if (msg.type === 'agent_status' && msg.data) {
     return;
 }
 if (msg.type === 'status' || msg.type === 'all') {
-    // Reset simState and viewport on full sync (new simulation)
     if (msg.type === 'all') {
       _simState = new Map();
       viewport.initialized = false;
@@ -837,55 +945,65 @@ if (msg.type === 'status' || msg.type === 'all') {
     }
     agents = msg.data.agents || [];
     if (msg.data.relationships !== undefined && (msg.data.relationships.length > 0 || agents.length === 0)) _relationships = msg.data.relationships;
-    // ── Agent 动作日志 ──
+    // ── agent_logs 旧缓冲区（兼容） ──
     if (_lastLogCount === 0) {
     const logs = msg.data.agent_logs || [];
     logs.slice(_lastLogCount).forEach(l => {
-        const ts = (l.timestamp||'').slice(11,24);
-        const from = l.from_agent || l.agent_id || '?';
-        const to = l.to_agent || '';
-        const action = l.action || l.event || '?';
-        const status = l.action_status || '';
-        const stIcon = status === 'success' ? '✅' : status === 'failed' ? '❌' : status === 'decided' ? '💭' : '➡️';
-        const msgText = from + ' ' + stIcon + ' ' + action + (to && to !== '-' ? ' → ' + to : '') + ' | ' + (l.detail||'');
-        logEntry('agent', msgText, ts);
+        const norm = normalizeLogRecord({
+          timestamp: l.timestamp || '',
+          level: l.level || 'INFO',
+          source: 'agent',
+          category: (l.event === 'act' || l.event === 'decide') ? 'agent_behavior' : 'system',
+          event: l.event || '',
+          actor: { id: l.from_agent || l.agent_id || '' },
+          target: { id: l.to_agent || '' },
+          action: { name: l.action || '', status: l.action_status || '' },
+          message: l.detail || '',
+          agent_id: l.agent_id,
+          from_agent: l.from_agent,
+          to_agent: l.to_agent,
+          details: { detail: l.detail, action: l.action, action_status: l.action_status },
+        }, 'ws_agent_log');
+        if (norm) { logBuffer.push(norm); if (logBuffer.length > 500) logBuffer.shift(); }
     });
     _lastLogCount = logs.length;
     }
-    // ── 结构化的 logger 条目 (去重) ──
+    // ── 新 log_entries（v2 统一 schema，优先使用） ──
     const logEntries = msg.data.log_entries || [];
     logEntries.forEach(e => {
-        const ts = (e.timestamp||'').slice(11,24);
-        const d = e.details || {};
-        const from = d.from_agent || e.agent_id || '';
-        const to = d.to_agent || '';
-        if (e.event === 'agent_message') {
-            logEntry('message', from + ' → ' + to + ' | ' + ((d.content||'')), ts);
-        } else if (e.event === 'event_trigger') {
-            logEntry('scene', '⚡ ' + (e.message||''), ts);
-        } else if (e.level === 'ERROR') {
-            logEntry('system', '❌ ' + from + ' | ' + (e.message||''), ts);
-        }
+        const norm = normalizeLogRecord(e, 'ws_log_entries');
+        if (norm) { logBuffer.push(norm); if (logBuffer.length > 500) logBuffer.shift(); }
     });
+    if (logEntries.length > 0 && _logFlushTimer) clearTimeout(_logFlushTimer);
+    if (logEntries.length > 0) _logFlushTimer = setTimeout(renderLogs, 16);
 }
 // ── 通信报文 ──
 if (msg.type === 'packets' && msg.data) {
     (msg.data.packets || []).forEach(p => {
-        const ts = (p.timestamp||'').slice(11,24);
-        const src = [p.src_ip||'', p.src_port||''].filter(Boolean).join(':') || '?';
-        const dst = [p.dst_ip||'', p.dst_port||''].filter(Boolean).join(':') || '?';
-        const text = [
-            src + ' → ' + dst,
-            p.protocol || 'TCP',
-            (p.total_size||p.size_bytes||'?') + 'B',
-            '[' + (p.tcp_flags||'') + ']',
-            p.channel_id ? 'ch:' + p.channel_id : '',
-            p.message_type || p.method || '',
-            (p.agent_from||'') + '→' + (p.agent_to||''),
-            (p.content||'')
-        ].filter(Boolean).join(' | ');
-        logEntry('message', text, ts);
+        const norm = normalizeLogRecord({
+          timestamp: p.timestamp || '',
+          level: 'INFO',
+          source: 'bus',
+          category: 'communication',
+          event: 'agent_message',
+          actor: { id: p.agent_from || '' },
+          target: { id: p.agent_to || '' },
+          network: {
+            src_ip: p.src_ip || '', src_port: p.src_port || 0,
+            dst_ip: p.dst_ip || '', dst_port: p.dst_port || 0,
+            protocol: p.protocol || 'TCP',
+            packet_len: p.total_size || p.size_bytes || 0,
+            tcp_flags: p.tcp_flags || '',
+            channel_id: p.channel_id || '',
+            message_type: p.message_type || p.method || '',
+          },
+          payload: { content: p.content || '' },
+          message: (p.agent_from||'') + '→' + (p.agent_to||'') + ' | ' + (p.content||'').slice(0, 80),
+        }, 'ws_packets');
+        if (norm) { logBuffer.push(norm); if (logBuffer.length > 500) logBuffer.shift(); }
     });
+    if (_logFlushTimer) clearTimeout(_logFlushTimer);
+    _logFlushTimer = setTimeout(renderLogs, 16);
 }
 };
 ws.onclose = () => { setTimeout(connectWS, 3000); };
