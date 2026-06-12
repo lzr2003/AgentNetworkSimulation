@@ -134,22 +134,61 @@ if (!container) return;
 const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
 const expandedTexts = new Set();
 container.querySelectorAll('.log-entry.expanded').forEach(el => {
-  expandedTexts.add(el.querySelector('.ev')?.textContent + '|' + el.querySelector('.ts')?.textContent);
+  const evEl = el.querySelector('.ev');
+  const tsEl = el.querySelector('.ts');
+  if (evEl && tsEl) expandedTexts.add(evEl.textContent + '|' + tsEl.textContent);
 });
 let entries = logBuffer.filter(e => checked.includes(e.field));
 const countEl = document.getElementById('log-count');
 if (countEl) countEl.textContent = entries.length;
-container.innerHTML = entries.slice(-200).map(e => {
-  const lvl = e.level === 'ERROR' ? ' lv-err' : e.level === 'WARN' ? ' lv-warn' : '';
-  const evHtml = e.field === 'message'
-    ? '<span class=ev>' + e.eventText + ' | <span class=ev-detail>' + e.detailText + '</span></span>'
-    : '<span class=ev>' + e.eventText + (e.detailText ? ' | ' + e.detailText : '') + '</span>';
-  return '<div class=log-entry onclick="this.classList.toggle(\'expanded\')"><span class=ts>' + e.timestamp + '</span> <span class="lv lv-' + e.field + lvl + '">' + e.field + '</span> ' + evHtml + '</div>';
-}).join('') || '<div class=log-entry><span class=ts>--</span> <span class=ev>无日志</span></div>';
-container.querySelectorAll('.log-entry').forEach(el => {
-  const key = el.querySelector('.ev')?.textContent + '|' + el.querySelector('.ts')?.textContent;
-  if (expandedTexts.has(key)) el.classList.add('expanded');
-});
+
+// 使用 DOM 构建，避免 innerHTML XSS
+container.replaceChildren();
+const fragment = document.createDocumentFragment();
+const displayEntries = entries.slice(-200);
+if (!displayEntries.length) {
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = '<span class=ts>--</span> <span class=ev>无日志</span>';
+  fragment.appendChild(div);
+} else {
+  displayEntries.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.addEventListener('click', function() { this.classList.toggle('expanded'); });
+
+    const tsSpan = document.createElement('span');
+    tsSpan.className = 'ts';
+    tsSpan.textContent = e.timestamp;
+
+    const lvlClass = 'lv lv-' + e.field + (e.level === 'ERROR' ? ' lv-err' : e.level === 'WARN' ? ' lv-warn' : '');
+    const lvSpan = document.createElement('span');
+    lvSpan.className = lvlClass;
+    lvSpan.textContent = e.field;
+
+    const evSpan = document.createElement('span');
+    evSpan.className = 'ev';
+    evSpan.textContent = e.eventText || '';
+
+    div.appendChild(tsSpan);
+    div.appendChild(lvSpan);
+    div.appendChild(evSpan);
+
+    if (e.detailText) {
+      const detailSpan = document.createElement('span');
+      detailSpan.className = 'ev-detail';
+      detailSpan.textContent = ' | ' + e.detailText;
+      evSpan.appendChild(detailSpan);
+    }
+
+    // 恢复展开状态
+    const key = evSpan.textContent + '|' + tsSpan.textContent;
+    if (expandedTexts.has(key)) div.classList.add('expanded');
+
+    fragment.appendChild(div);
+  });
+}
+container.appendChild(fragment);
 if (autoscroll && wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 function clearLogs() { logBuffer = []; renderLogs(); }
@@ -288,7 +327,7 @@ const canvas = document.getElementById('agent-canvas');
 const ctx = canvas?.getContext('2d');
 
 function resizeCanvas() {
-  const container = document.getElementById('canvas-panel');
+  const container = document.getElementById('canvas-stage');
   if (!canvas || !container) return;
   const rect = container.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -308,8 +347,8 @@ requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 // 监听容器布局变化（侧边栏折叠/展开等不触发 window.resize 的场景）
 if (window.ResizeObserver) {
   const _ro = new ResizeObserver(() => resizeCanvas());
-  const _panel = document.getElementById('canvas-panel');
-  if (_panel) _ro.observe(_panel);
+  const _stage = document.getElementById('canvas-stage');
+  if (_stage) _ro.observe(_stage);
 }
 // 后台标签页暂停渲染循环
 document.addEventListener('visibilitychange', () => {
@@ -700,7 +739,7 @@ function showTooltip(agent, mx, my) {
   }
   tt.innerHTML = html;
   tt.style.display = 'block';
-  const panelRect = document.getElementById('canvas-panel')?.getBoundingClientRect();
+  const panelRect = document.getElementById('canvas-stage')?.getBoundingClientRect();
   const tx = mx + (panelRect?.left || 0);
   const ty = my + (panelRect?.top || 0);
   tt.style.left = Math.max(0, Math.min(tx + 16, window.innerWidth - 300)) + 'px';
@@ -1032,18 +1071,17 @@ async function loadSceneList() {
 
 function onSceneSelect() {}
 
-// ============== Float Panel ==============
+// ============== Scene Panel ==============
 function loadScenePanel(name) {
   const iframe = document.getElementById('fp-iframe');
-  const titleEl = document.getElementById('fp-title');
   if (iframe && name) {
     iframe.src = API + '/scenes/' + encodeURIComponent(name) + '/panel';
+    sessionStorage.setItem('lastScenePanel', name);
   }
-  if (titleEl) titleEl.textContent = name || '场景面板';
 }
 
-function toggleFloatPanel() {
-  document.getElementById('float-panel').classList.toggle('collapsed');
+function toggleScenePanel() {
+  document.getElementById('scene-panel').classList.toggle('collapsed');
 }
 
 async function runSelectedScene() {
@@ -1096,4 +1134,7 @@ function togglePanel(id) { document.getElementById(id).classList.toggle('minimiz
 // ============== Start ==============
 logEntry('system', '控制台就绪');
 loadSceneList();
+// 恢复上次加载的场景面板
+const lastScene = sessionStorage.getItem('lastScenePanel');
+if (lastScene) loadScenePanel(lastScene);
 setTimeout(() => { if (ws && ws.readyState === WebSocket.OPEN) ws.send('all'); }, 500);

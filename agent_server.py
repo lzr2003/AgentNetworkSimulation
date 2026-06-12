@@ -255,22 +255,33 @@ def _recent_direct_sender() -> Optional[str]:
 # ═══════════════════════════════════════════════
 
 def _normalize_action(raw) -> dict:
-    """归一化 brain Action 对象 / openclaw dict / claude dict → 统一 dict"""
+    """归一化 brain Action 对象 / openclaw dict / claude dict → 统一 dict，保留所有扩展字段"""
     if hasattr(raw, 'to_dict'):
         d = raw.to_dict()
-        return {
+        result = {
             "type": d.get("type", "wait"),
             "target": d.get("target", ""),
             "content": d.get("content", ""),
             "reasoning": d.get("reasoning", ""),
         }
+        # brain Action 对象的扩展字段（skill, params, target_x, target_y 等）
+        for k in ("skill", "params", "target_x", "target_y", "focus", "objective", "steps"):
+            if k in d and k not in result:
+                result[k] = d[k]
+        return result
     if isinstance(raw, dict):
-        return {
+        result = {
             "type": raw.get("action", raw.get("type", "wait")),
             "target": raw.get("target", ""),
             "content": raw.get("content", ""),
             "reasoning": raw.get("reasoning", ""),
         }
+        # 保留 openclaw/claude 返回的扩展字段（execute_skill 的 skill_name→skill, params）
+        for k in ("skill", "params", "skill_name", "focus", "objective", "steps"):
+            val = raw.get(k, "")
+            if val and k not in result:
+                result["skill" if k == "skill_name" else k] = val
+        return result
     return {"type": "wait", "target": "", "content": "", "reasoning": str(raw)}
 
 
@@ -542,7 +553,7 @@ def _prepare_decision_context(ctx: dict):
     return effective_id, effective_name
 
 
-def _decide_with_brain(ctx: dict, effective_id: str):
+async def _decide_with_brain(ctx: dict, effective_id: str):
     """Brain 后端决策"""
     global _channel_map, _current_talk, _effective_id, _effective_name
     _channel_map = ctx.get("channel_map", {})
@@ -565,26 +576,26 @@ def _decide_with_brain(ctx: dict, effective_id: str):
             _agent._last_injected_id = effective_id
             _agent.equip_brain(goals=injected_goals, config=_brain_config, system_prompt=injected_prompt)
 
-    action = _agent.decide(ctx)
+    action = await asyncio.to_thread(_agent.decide, ctx)
     if not action:
         return {"type": "wait", "target": "", "content": "", "reasoning": "no brain available"}
     return _normalize_action(action)
 
 
-def _decide_with_openclaw(ctx: dict):
+async def _decide_with_openclaw(ctx: dict):
     """OpenCLAW 后端决策"""
     if not API_KEY:
         return {"type": "wait", "target": "", "content": "", "reasoning": "no API key configured"}
     system = _build_system_prompt(ctx)
     user = _build_user_message(inbox, ctx)
-    action_raw = _call_openclaw(system, user)
+    action_raw = await asyncio.to_thread(_call_openclaw, system, user)
     return _normalize_action(action_raw)
 
 
-def _decide_with_claude_code(ctx: dict):
+async def _decide_with_claude_code(ctx: dict):
     """Claude Code 后端决策"""
     prompt = _build_claude_prompt(inbox, ctx)
-    response = _call_claude_code(prompt)
+    response = await asyncio.to_thread(_call_claude_code, prompt)
     action_raw = _parse_claude_response(response)
     return _normalize_action(action_raw)
 
@@ -596,11 +607,11 @@ async def decide(req: DecideRequest = None):
 
     try:
         if BACKEND == "brain":
-            action = _decide_with_brain(ctx, effective_id)
+            action = await _decide_with_brain(ctx, effective_id)
         elif BACKEND == "openclaw":
-            action = _decide_with_openclaw(ctx)
+            action = await _decide_with_openclaw(ctx)
         else:  # claude-code
-            action = _decide_with_claude_code(ctx)
+            action = await _decide_with_claude_code(ctx)
     except Exception as e:
         action = {"type": "wait", "target": "", "content": "", "reasoning": str(e)}
 
@@ -623,7 +634,7 @@ async def decide(req: DecideRequest = None):
 # /act — 执行端点
 # ═══════════════════════════════════════════════
 
-def _handle_message_action(action_type: str, action_target: str, action_content: str) -> dict:
+async def _handle_message_action(action_type: str, action_target: str, action_content: str) -> dict:
     """处理 send_message / broadcast 动作"""
     is_broadcast = (action_target == "0.0.0.0" or action_type == "broadcast")
     result: Dict[str, Any] = {}
@@ -641,11 +652,11 @@ def _handle_message_action(action_type: str, action_target: str, action_content:
             chan_id = ""
         talk = _current_talk if BACKEND == "brain" else ""
         if is_broadcast:
-            ok = comm.broadcast(_current_effective_id, _current_effective_name,
-                                action_content, _allowed_targets, chan_id, talk)
+            ok = await asyncio.to_thread(comm.broadcast, _current_effective_id, _current_effective_name,
+                                         action_content, _allowed_targets, chan_id, talk)
         else:
-            ok = comm.send(_current_effective_id, _current_effective_name,
-                           action_target, action_content, chan_id, talk)
+            ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name,
+                                         action_target, action_content, chan_id, talk)
         latency = (time.time() - relay_start) * 1000
         result["relayed"] = ok
         _log_agent("act", action_content or action_type, action_type=action_type,
@@ -667,7 +678,7 @@ def _handle_message_action(action_type: str, action_target: str, action_content:
     return result
 
 
-def _handle_skill_action(action_target: str, action_content, la: dict) -> dict:
+async def _handle_skill_action(action_target: str, action_content, la: dict) -> dict:
     """处理 execute_skill 动作"""
     skill_name = la.get("skill", action_target)
     skill_params = la.get("params", action_content if isinstance(action_content, dict) else {})
@@ -675,9 +686,12 @@ def _handle_skill_action(action_target: str, action_content, la: dict) -> dict:
         skill_params = {}
     result: Dict[str, Any] = {}
     try:
-        r = requests.post(f"{SERVER_URL}/api/skills/execute", json={
-            "skill_name": skill_name, "params": skill_params,
-        }, timeout=10)
+        r = await asyncio.to_thread(
+            requests.post,
+            f"{SERVER_URL}/api/skills/execute",
+            json={"skill_name": skill_name, "params": skill_params},
+            timeout=10,
+        )
         skill_ret = r.json() if r.ok else {"error": r.text[:500]}
         result["skill_result"] = skill_ret
         # 写入收件箱
@@ -694,7 +708,7 @@ def _handle_skill_action(action_target: str, action_content, la: dict) -> dict:
     return result
 
 
-def _auto_reply_skill_result(skill_ret: dict, skill_name: str):
+async def _auto_reply_skill_result(skill_ret: dict, skill_name: str):
     """技能执行成功后，自动回复最近直接发件人"""
     if not isinstance(skill_ret, dict) or skill_ret.get("status") == "error":
         return
@@ -703,8 +717,8 @@ def _auto_reply_skill_result(skill_ret: dict, skill_name: str):
         return
     ret_str = json.dumps(skill_ret, ensure_ascii=False)
     auto_msg = f"[{skill_name} 执行结果]\n{ret_str}"
-    ok = comm.send(_current_effective_id, _current_effective_name,
-                   recent_sender, auto_msg, "", "")
+    ok = await asyncio.to_thread(comm.send, _current_effective_id, _current_effective_name,
+                                 recent_sender, auto_msg, "", "")
     _log_agent("act", auto_msg, action_type="send_message", target=recent_sender,
                content=auto_msg, status="success" if ok else "failed")
 
@@ -721,13 +735,13 @@ async def act():
     result: Dict[str, Any] = {"action": last_action, "backend": BACKEND}
 
     if action_type in ("send_message", "broadcast"):
-        result.update(_handle_message_action(action_type, action_target, action_content))
+        result.update(await _handle_message_action(action_type, action_target, action_content))
     elif action_type == "execute_skill":
-        result.update(_handle_skill_action(action_target, action_content, last_action))
+        result.update(await _handle_skill_action(action_target, action_content, last_action))
         # 技能成功后自动回复最近发件人
         if result.get("skill_result"):
-            _auto_reply_skill_result(result["skill_result"],
-                                     last_action.get("skill", action_target))
+            await _auto_reply_skill_result(result["skill_result"],
+                                           last_action.get("skill", action_target))
 
     return result
 
@@ -753,17 +767,12 @@ async def status():
 
 @app.post("/message")
 async def receive_message(msg: MessageIn, request: Request = None):
-    if _agent:
+    if _agent and BACKEND == "brain":
         client_ip = request.client.host if request and request.client else "unknown"
-        _agent._add_to_inbox(from_agent=msg.from_id, content=msg.content, msg_type=msg.type or "direct")
-        if BACKEND == "brain":
-            PacketRecorder.record_inbound(agent_id=AGENT_ID, src_ip=client_ip,
-                                          method="POST", path="/message",
-                                          content=msg.content, from_id=msg.from_id)
-    else:
-        inbox.append({"from": msg.from_id, "content": msg.content, "type": msg.type})
-        if len(inbox) > 50:
-            inbox.pop(0)
+        PacketRecorder.record_inbound(agent_id=AGENT_ID, src_ip=client_ip,
+                                      method="POST", path="/message",
+                                      content=msg.content, from_id=msg.from_id)
+    _append_inbox(msg.from_id, msg.content, msg.type or "direct")
     return {"received": True, "inbox_size": _inbox_size()}
 
 
@@ -774,9 +783,7 @@ async def receive_event(event: Dict[str, Any]):
     event_name = event.get("event_name", "未知事件")
     impact = event.get("impact", "")
     t = event.get("turn", 0)
-    _agent._add_to_inbox(from_agent="系统",
-                         content=f"⚠️ 事件 [{event_name}]: {impact}",
-                         msg_type="system")
+    _append_inbox("系统", f"⚠️ 事件 [{event_name}]: {impact}", "system")
     _event_queue.append({"event_name": event_name, "impact": impact, "turn": t})
     _log_agent("event_received", f"事件: {event_name} — {impact}",
                event_name=event_name, impact=impact, turn=t)

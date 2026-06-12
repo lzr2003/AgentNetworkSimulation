@@ -1067,7 +1067,7 @@ async def log_stats():
 
 @app.get("/api/logs/agent/{agent_id}")
 async def agent_logs(agent_id: str, limit: int = 50):
-    """获取某个 Agent 的完整时间线"""
+    """获取某个 Agent 的完整时间线（decide/act/agent_action/agent_decide）"""
     return {
         "agent_id": agent_id,
         "entries": logger.get_agent_timeline(agent_id, limit),
@@ -1076,10 +1076,13 @@ async def agent_logs(agent_id: str, limit: int = 50):
 
 @app.get("/api/logs/messages")
 async def message_logs(limit: int = 50):
-    """获取 Agent 间通信报文"""
+    """获取 Agent 间通信报文 + Docker HTTP 流量"""
+    with logger._lock:
+        comm_entries = [e for e in logger._entries if e.get("category") == "communication"]
+    total = len(comm_entries)
     return {
-        "total": logger._stats["by_event"].get("agent_message", 0),
-        "entries": logger.get_message_log(limit),
+        "total": total,
+        "entries": comm_entries[-limit:],
     }
 
 

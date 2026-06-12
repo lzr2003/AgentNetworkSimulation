@@ -23,12 +23,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-# ── 敏感 header 脱敏 ──
+# ── 敏感字段脱敏 ──
 
-SENSITIVE_HEADERS = {
-    "authorization", "x-api-key", "api-key", "token",
+SENSITIVE_KEYS = {
+    "authorization", "x-api-key", "api-key", "api_key", "token",
     "password", "secret", "x-auth-token", "cookie",
     "set-cookie", "anthropic-api-key", "llm-api-key",
+    "key",  # 泛化：JSON 中的 "key" 字段可能含凭证
 }
 
 EXCLUDED_PATHS = {
@@ -47,15 +48,35 @@ def _now_iso() -> str:
 
 
 def _sanitize_headers(headers: dict) -> dict:
-    """脱敏敏感字段"""
+    """脱敏敏感 header 字段"""
     result = {}
     for k, v in headers.items():
         kl = k.lower()
-        if kl in SENSITIVE_HEADERS:
+        if kl in SENSITIVE_KEYS:
             result[k] = "***REDACTED***"
         else:
             result[k] = v
     return result
+
+
+def _sanitize_body(obj: Any, depth: int = 0) -> Any:
+    """递归脱敏 JSON body 中的敏感字段（api_key, token, password, secret 等）"""
+    if depth > 10:
+        return obj
+    if isinstance(obj, dict):
+        result = {}
+        for k, v in obj.items():
+            kl = k.lower()
+            if kl in SENSITIVE_KEYS or any(s in kl for s in ("secret", "password", "token")):
+                result[k] = "***REDACTED***"
+            elif isinstance(v, (dict, list)):
+                result[k] = _sanitize_body(v, depth + 1)
+            else:
+                result[k] = v
+        return result
+    if isinstance(obj, list):
+        return [_sanitize_body(item, depth + 1) for item in obj]
+    return obj
 
 
 def _should_skip(path: str) -> bool:
@@ -136,6 +157,14 @@ def _send_traffic_record(server_url: str, component: str, direction: str,
                           req_headers: dict, resp_headers: dict):
     """通过网络发给 srv 的 /api/logs/ingest（不直接调 logger 避免依赖）"""
     content_type = resp_headers.get("content-type", "")
+    req_ct = req_headers.get("content-type", "")
+    parsed_req = _parse_body(req_body, req_ct)
+    parsed_resp = _parse_body(resp_body, content_type)
+    # 递归脱敏 JSON body
+    if isinstance(parsed_req, dict):
+        parsed_req = _sanitize_body(parsed_req)
+    if isinstance(parsed_resp, dict):
+        parsed_resp = _sanitize_body(parsed_resp)
     record = {
         "timestamp": _now_iso(),
         "level": ("ERROR" if status_code >= 500 else "INFO"),
@@ -151,12 +180,12 @@ def _send_traffic_record(server_url: str, component: str, direction: str,
             "request": {
                 "method": method, "path": path,
                 "headers": _sanitize_headers(req_headers),
-                "body": _parse_body(req_body, req_headers.get("content-type", "")),
+                "body": parsed_req,
             },
             "response": {
                 "status": status_code,
                 "headers": _sanitize_headers(resp_headers),
-                "body": _parse_body(resp_body, content_type),
+                "body": parsed_resp,
             },
         },
         "network": {
@@ -230,19 +259,19 @@ def traffic_post_json(url: str, json_data: dict, *,
         "payload": {
             "request": {
                 "method": "POST", "path": path, "url": url,
-                "body": json_data,
+                "body": _sanitize_body(json_data) if isinstance(json_data, dict) else json_data,
             },
             "response": {
                 "status": status_code,
                 "headers": _sanitize_headers(resp_headers),
-                "body": resp_text,
+                "body": resp_text[:2000] if resp_text else "",
                 "error": error,
             },
         },
         "network": {
             "direction": "outbound",
             "latency_ms": round(latency_ms, 1),
-            "request_bytes": len(json.dumps(json_data, ensure_ascii=False).encode()),
+            "request_bytes": len(json.dumps(json_data, ensure_ascii=False).encode()) if isinstance(json_data, dict) else 0,
             "response_bytes": len(resp_body),
             "target_host": parsed.netloc,
         },
@@ -261,7 +290,41 @@ def traffic_post_json(url: str, json_data: dict, *,
     return (resp is not None and resp.ok), resp_json
 
 
+def traffic_requests_post(url: str, *, component: str = "unknown",
+                          server_url: str = "", json_data: dict = None,
+                          timeout: float = 10, **kwargs):
+    """
+    requests.post 的包装器，自动记录出站流量日志。
+    用法与 requests.post 相同，但 json= 参数改为 json_data=。
+
+    返回 requests.Response 对象（成功）或 None（异常）。
+    """
+    if not traffic_enabled() or not server_url:
+        try:
+            return requests_post_fallback(url, json=json_data, timeout=timeout, **kwargs)
+        except Exception:
+            return None
+    ok, resp_json = traffic_post_json(url, json_data,
+                                      component=component, server_url=server_url,
+                                      timeout=timeout, **kwargs)
+    if ok:
+        # 构造一个模拟 Response 对象
+        class _FakeResp:
+            def __init__(self, data, status):
+                self._json = data
+                self.status_code = status
+                self.ok = True
+            def json(self): return self._json
+        return _FakeResp(resp_json, 200)
+    return None
+
+
+def requests_post_fallback(url: str, **kwargs):
+    """普通 requests.post，不做流量记录"""
+    import requests as _r
+    return _r.post(url, **kwargs)
+
+
 # ── 环境感知 ──
-# 仅在 LOG_TRAFFIC=1 时启用
 def traffic_enabled() -> bool:
     return os.environ.get("LOG_TRAFFIC", "0") == "1"

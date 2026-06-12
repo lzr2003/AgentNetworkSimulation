@@ -9,15 +9,13 @@
 <body>
 <div class="app">
 <div class="canvas-panel" id="canvas-panel">
-<canvas id="agent-canvas"></canvas>
-<div class="float-panel" id="float-panel">
-  <div class="fp-header">
-    <span class="fp-title" id="fp-title">场景面板</span>
-    <span class="fp-close" onclick="toggleFloatPanel()" title="折叠">_</span>
-  </div>
+<div class="canvas-stage" id="canvas-stage">
+  <canvas id="agent-canvas"></canvas>
+  <div class="tooltip" id="tooltip"></div>
+</div>
+<div class="scene-panel" id="scene-panel">
   <iframe id="fp-iframe" src="about:blank"></iframe>
 </div>
-<div class="tooltip" id="tooltip"></div>
 </div>
 <div class="side-panel">
 <div class="section-title">
