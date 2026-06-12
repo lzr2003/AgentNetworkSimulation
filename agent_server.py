@@ -177,7 +177,7 @@ elif BACKEND == "openclaw":
 backend_label = {"brain": "Brain", "openclaw": "OpenCLAW", "claude-code": "Claude Code"}.get(BACKEND, BACKEND)
 app = FastAPI(title=f"Agent {AGENT_NAME} ({backend_label})")
 
-# ── 流量监管 middleware（LOG_TRAFFIC=1 时启用）──
+# ── Docker HTTP middleware（LOG_DOCKER_HTTP=1 时启用）──
 from agent_network.traffic_log import TrafficMiddleware, traffic_enabled
 if traffic_enabled():
     app.add_middleware(TrafficMiddleware, component=AGENT_ID, server_url=f"{SERVER_URL}")
@@ -880,7 +880,7 @@ if __name__ == "__main__":
     print(f"[Agent {backend_label}] {AGENT_NAME} ({AGENT_ROLE}) starting on port {AGENT_PORT}")
     print(f"[Agent {backend_label}] Backend: {BACKEND} | Model: {MODEL} | Goal: {AGENT_CORE_GOAL or 'N/A'}")
 
-    # 启动网络抓包（LOG_TRAFFIC=1 时生效）
+    # 启动 LLM API 网络抓包（LOG_LLM_API=1 时生效）
     from agent_network.packet_capture import start_capture, stop_capture
     start_capture(agent_id=AGENT_ID, server_url=SERVER_URL)
 

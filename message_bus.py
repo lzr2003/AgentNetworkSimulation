@@ -30,7 +30,7 @@ from agent_network.event_bus import PacketRecorder, HEADER_OVERHEAD
 
 app = FastAPI(title="Agent Message Bus")
 
-# ── 流量监管 middleware（LOG_TRAFFIC=1 时启用）──
+# ── Docker HTTP middleware（LOG_DOCKER_HTTP=1 时启用）──
 SERVER_URL = os.environ.get("SERVER_URL", "http://srv:8000")
 from agent_network.traffic_log import TrafficMiddleware, traffic_enabled
 if traffic_enabled():

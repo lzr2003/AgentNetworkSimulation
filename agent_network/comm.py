@@ -44,8 +44,8 @@ class RemoteBus(CommLayer):
         self._bus_url = message_bus_url.rstrip("/")
         self._server_url = server_url.rstrip("/")
         self.inbox: List[Dict[str, Any]] = []
-        # 流量日志
-        self._traffic = os.environ.get("LOG_TRAFFIC", "0") == "1"
+        # Docker 内部 HTTP 日志；LOG_TRAFFIC 仅作为旧配置兼容。
+        self._traffic = os.environ.get("LOG_DOCKER_HTTP", os.environ.get("LOG_TRAFFIC", "0")) == "1"
         self._traffic_component = os.environ.get("AGENT_ID", "agent")
 
     def _post(self, path: str, json_data: dict = None, params: dict = None,

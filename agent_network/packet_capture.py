@@ -1,7 +1,7 @@
 """
 Agent 容器内 tcpdump 网络抓包 — 捕获外部 LLM API 访问的 TCP/TLS 元数据。
 
-写入 global.jsonl (category: network_capture)，由 LOG_TRAFFIC=1 控制。
+写入 global.jsonl (category: network_capture)，由 LOG_LLM_API=1 控制。
 不做 HTTPS 解密，不记录 payload 明文。
 
 用法（agent_server.py 启动时调用一次）:
@@ -29,10 +29,16 @@ INTERNAL_PORTS = {8000, 9000, 6379}  # Agent/srv 内网端口
 # 聚合窗口：同一连接在此时间内合并为一条日志
 AGGREGATION_WINDOW = 5.0  # seconds
 
-# tcpdump 输出行正则
+# tcpdump 输出行正则，兼容：
+#   12:34:56.123456 IP 172.18.0.2.53000 > 1.2.3.4.443: Flags [S], ... length 0
+#   1718170000.123456 eth0 Out IP 172.18.0.2.53000 > 1.2.3.4.443: Flags [P.], ... length 123
 TCPDUMP_LINE = re.compile(
-    r'(\d{2}:\d{2}:\d{2}\.\d+)\s+IP\s+(\S+)\.(\d+)\s+>\s+(\S+)\.(\d+):'
-    r'\s+(Flags\s+\[(.+?)\].*?,\s+length\s+(\d+))'
+    r'^(?P<time>\S+)\s+'
+    r'(?:(?P<iface>\S+)\s+(?P<iface_dir>In|Out|in|out)\s+)?'
+    r'IP\s+'
+    r'(?P<src>.+?)\.(?P<src_port>\d+)\s+>\s+'
+    r'(?P<dst>.+?)\.(?P<dst_port>\d+):'
+    r'.*?Flags\s+\[(?P<flags>[^\]]+)\].*?length\s+(?P<length>\d+)'
 )
 
 _capture_process: Optional[subprocess.Popen] = None
@@ -72,20 +78,27 @@ def _send_record(server_url: str, record: dict):
         pass
 
 
+def _llm_capture_enabled() -> bool:
+    """LLM 网络层抓包开关；LOG_TRAFFIC 仅作为旧配置兼容。"""
+    return os.environ.get("LOG_LLM_API", os.environ.get("LOG_TRAFFIC", "0")) == "1"
+
+
 def _parse_tcpdump_line(line: str) -> Optional[dict]:
     """解析一行 tcpdump 输出"""
     m = TCPDUMP_LINE.match(line.strip())
     if not m:
         return None
-    time_str, src_ip, src_port, dst_ip, dst_port, _flags_block, tcp_flags, length = m.groups()
+    gd = m.groupdict()
     return {
-        "time": time_str,
-        "src_ip": src_ip,
-        "src_port": int(src_port),
-        "dst_ip": dst_ip,
-        "dst_port": int(dst_port),
-        "tcp_flags": tcp_flags,
-        "length": int(length),
+        "time": gd["time"],
+        "interface": gd.get("iface") or "any",
+        "interface_direction": (gd.get("iface_dir") or "").lower(),
+        "src_ip": gd["src"],
+        "src_port": int(gd["src_port"]),
+        "dst_ip": gd["dst"],
+        "dst_port": int(gd["dst_port"]),
+        "tcp_flags": gd["flags"],
+        "length": int(gd["length"]),
     }
 
 
@@ -147,7 +160,8 @@ def _flush_aggregated(agent_id: str, server_url: str, connections: dict):
                 "dst_port": data["dst_port"],
                 "tcp_flags": data.get("last_flags", ""),
                 "packet_len": data["total_bytes"],
-                "capture_interface": "any",
+                "capture_interface": data.get("interface", "any"),
+                "interface_direction": data.get("interface_direction", ""),
                 "external": True,
             },
             "trace": {},
@@ -164,10 +178,9 @@ def _capture_loop(agent_id: str, server_url: str):
 
     # 构建 tcpdump 命令
     # -i any: 所有接口
-    # -n: 不解析 hostname
-    # -tt: 时间戳
+    # -nn: 不解析 hostname/port name，保证端口是数字
     # tcp port 443 or tcp port 80: 只抓外部 HTTPS/HTTP
-    cmd = ["tcpdump", "-i", "any", "-n", "-tt", "-l",
+    cmd = ["tcpdump", "-i", "any", "-nn", "-l",
            "tcp port 443 or tcp port 80"]
 
     try:
@@ -195,9 +208,20 @@ def _capture_loop(agent_id: str, server_url: str):
         return
 
     _running = True
+    _send_record(server_url, {
+        "timestamp": _now_iso(),
+        "level": "INFO",
+        "source": "agent",
+        "component": agent_id,
+        "category": "system",
+        "event": "tcpdump_started",
+        "message": f"[{agent_id}] tcpdump started for LLM API network capture",
+        "payload": {"command": " ".join(cmd), "llm_hosts": llm_hosts},
+    })
     # 聚合缓冲区：connection_key → {count, bytes, timestamps}
     connections: Dict[str, dict] = {}
     last_flush = time.time()
+    parse_miss = 0
 
     while _running:
         line = _capture_process.stdout.readline()
@@ -206,6 +230,18 @@ def _capture_loop(agent_id: str, server_url: str):
 
         parsed = _parse_tcpdump_line(line)
         if not parsed:
+            parse_miss += 1
+            if parse_miss in (10, 100, 1000):
+                _send_record(server_url, {
+                    "timestamp": _now_iso(),
+                    "level": "WARN",
+                    "source": "agent",
+                    "component": agent_id,
+                    "category": "system",
+                    "event": "tcpdump_parse_miss",
+                    "message": f"[{agent_id}] tcpdump output parse miss x{parse_miss}",
+                    "payload": {"sample": line.strip()[:300]},
+                })
             continue
         if not _is_llm_traffic(parsed, llm_hosts):
             continue
@@ -229,6 +265,8 @@ def _capture_loop(agent_id: str, server_url: str):
                 "src_port": parsed["src_port"],
                 "dst_ip": parsed["dst_ip"],
                 "dst_port": parsed["dst_port"],
+                "interface": parsed.get("interface", "any"),
+                "interface_direction": parsed.get("interface_direction", ""),
                 "count": 0,
                 "total_bytes": 0,
                 "last_time": time.time(),
@@ -247,12 +285,28 @@ def _capture_loop(agent_id: str, server_url: str):
 
     # 退出前清空
     _flush_aggregated(agent_id, server_url, connections)
+    stderr = ""
+    returncode = _capture_process.poll() if _capture_process else None
+    try:
+        stderr = (_capture_process.stderr.read() if _capture_process and _capture_process.stderr else "") or ""
+    except Exception:
+        stderr = ""
+    _send_record(server_url, {
+        "timestamp": _now_iso(),
+        "level": "WARN" if returncode not in (0, None) else "INFO",
+        "source": "agent",
+        "component": agent_id,
+        "category": "system",
+        "event": "tcpdump_exited",
+        "message": f"[{agent_id}] tcpdump exited rc={returncode}",
+        "payload": {"returncode": returncode, "stderr": stderr[-500:]},
+    })
 
 
 def start_capture(agent_id: str = "", server_url: str = "http://srv:8000"):
     """启动后台抓包（由 agent_server main 调用）"""
     global _capture_thread
-    if os.environ.get("LOG_LLM_API", os.environ.get("LOG_TRAFFIC", "0")) != "1":
+    if not _llm_capture_enabled():
         return
     _capture_thread = threading.Thread(
         target=_capture_loop,

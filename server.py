@@ -118,7 +118,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── 流量监管 middleware（LOG_TRAFFIC=1 时启用）──
+# ── Docker HTTP middleware（LOG_DOCKER_HTTP=1 时启用）──
 from agent_network.traffic_log import TrafficMiddleware, traffic_enabled
 if traffic_enabled():
     app.add_middleware(TrafficMiddleware, component="srv", server_url="http://localhost:8000")

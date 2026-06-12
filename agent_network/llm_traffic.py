@@ -1,7 +1,7 @@
 """
 外部 LLM API 调用元数据记录 — 不记录 prompt/response 正文，只记录元数据。
 
-写入 global.jsonl (category: llm_api)，由 LOG_TRAFFIC=1 开关控制。
+写入 global.jsonl (category: llm_api)，由 LOG_LLM_API=1 开关控制。
 
 用法:
   from agent_network.llm_traffic import log_llm_call, log_llm_cli
@@ -38,6 +38,11 @@ def _send(record: dict):
         pass
 
 
+def llm_api_enabled() -> bool:
+    """LLM 应用层日志开关；LOG_TRAFFIC 仅作为旧配置兼容。"""
+    return os.environ.get("LOG_LLM_API", os.environ.get("LOG_TRAFFIC", "0")) == "1"
+
+
 def log_llm_call(*,
                  provider: str = "",
                  model: str = "",
@@ -53,7 +58,7 @@ def log_llm_call(*,
                  component: str = "unknown",
                  error: str = ""):
     """记录一次外部 LLM HTTP/SDK 调用的元数据"""
-    if os.environ.get("LOG_TRAFFIC", "0") != "1":
+    if not llm_api_enabled():
         return
 
     record = {
@@ -98,7 +103,7 @@ def log_llm_cli(*,
                 component: str = "unknown",
                 error: str = ""):
     """记录一次 Claude CLI 调用的元数据（不记录 prompt/response）"""
-    if os.environ.get("LOG_TRAFFIC", "0") != "1":
+    if not llm_api_enabled():
         return
 
     record = {
