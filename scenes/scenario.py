@@ -36,6 +36,19 @@ SYSTEM_PROMPT = """
    - 字符串内缩进使用 4 空格，确保从 JSON 解析出来后是合法 Python 代码
 7. 动机可量化收敛：角色的核心目标必须具体且带有时限或量化指标（例如：预算结余>50%），严禁日常社交闲聊。
 8. 终止条件嵌入：scenario_metadata 必须包含 max_rounds（硬上限，3-30）和 stalemate_rounds（僵局检测阈值，2-10）。max_rounds 根据角色数量和剧本复杂度合理设定（10 角色左右建议 8-12 轮），stalemate_rounds 建议设为 3-5 轮。
+9. 业务拓扑双轨制（核心）：通信信道层（network_topology）与业务合约层（business_topology）严格分离。
+   - 通信信道层：固定不变，定义 Agent 间底层网络通道。
+   - 业务合约层：仅定义初始种子连线 links（全部 NEGOTIATING），代表开局时已知的谈判意向。
+     任何机构可以与任何运营商自由谈判（不限于 seeds），由技能在运行时动态创建新连线：
+     * submit_bidding_proposal：运营商向机构报价时，若二者无连线则自动创建 NEGOTIATING 连线
+     * evaluate_proposals：机构评估方案时，若与某运营商无连线则自动创建 NEGOTIATING 连线
+     * sign_contract：将 NEGOTIATING → SIGNED；若机构已有其他 SIGNED 合约，自动触发旧连线 BREACH_FLASHING
+     合同状态机：NEGOTIATING → SIGNED → BREACH_FLASHING → TERMINATED（移除）
+     所有业务事件由 skills.py 运行时通过 event_log 动态产出，严禁写入静态 JSON。
+10. 合约技能细化（核心）：角色技能必须包含招投标与合约操作，与 business_topology 状态机联动：
+    - 机构侧必备：evaluate_proposals（评估多方报价，对比 contract_value 决定转投）、terminate_contract_with_flash（触发 BREACH_FLASHING → TERMINATED）、sign_contract（创建 SIGNED 连线）
+    - 运营商侧必备：submit_bidding_proposal（提交竞标方案，包含报价/带宽/算力等参数）、process_breach_notification（接收被违约通知，触发挽留或报复策略）
+    每个技能在 skills_code 中必须有完整实现，函数内部用模块级字典 active_contracts 追踪业务连线状态。
 """
 
 # =====================================================================
@@ -154,10 +167,34 @@ RESPONSE_SCHEMA = {
                 # 模块四：技能可执行代码 (对应 skills.py)
                 "skills_code": {
                     "type": "string",
-                    "description": "完整的 Python 模块代码字符串，包含 SkillRegistry 注册中心类 + 所有技能的函数实现。每个函数须有仿真逻辑（资源追踪、随机事件、数值计算、边界校验），接受 **kwargs 返回 dict。代码缩进用 4 空格，可直接 import 运行。"
+                    "description": "完整的 Python 模块代码字符串，包含 SkillRegistry 注册中心类 + 所有技能的函数实现。技能必须包含机构侧（evaluate_proposals、terminate_contract_with_flash、sign_contract）和运营商侧（submit_bidding_proposal、process_breach_notification），每个函数内部追踪模块级业务状态字典 active_contracts。所有函数接受 **kwargs 返回 dict(status/result/data)。代码缩进用 4 空格，可直接 import 运行。"
+                },
+                # 模块五：业务合约种子拓扑 (对应 business_topology.json)
+                "business_topology": {
+                    "type": "object",
+                    "properties": {
+                        "links": {
+                            "type": "array",
+                            "description": "业务合约种子连线。仅为开局时的已知谈判意向，全部 NEGOTIATING。任何机构可与任何运营商自由谈判（不限种子），由技能 submit_bidding_proposal/evaluate_proposals 自动创建新连线。签约/违约/终止由 Agent 运行时自行决策。",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "source": {"type": "string", "description": "机构角色ID"},
+                                    "target": {"type": "string", "description": "运营商角色ID"},
+                                    "status": {"type": "string", "enum": ["NEGOTIATING"], "description": "初始状态固定为 NEGOTIATING"},
+                                    "value": {"type": "number", "description": "预估合同标的金额"},
+                                    "desc": {"type": "string", "description": "业务关系说明"}
+                                },
+                                "required": ["source", "target", "status", "value"],
+                                "additionalProperties": False
+                            }
+                        }
+                    },
+                    "required": ["links"],
+                    "additionalProperties": False
                 }
             },
-            "required": ["meta_and_roles", "instances_and_skills", "network_topology", "skills_code"],
+            "required": ["meta_and_roles", "instances_and_skills", "network_topology", "skills_code", "business_topology"],
             "additionalProperties": False
         }
     }
@@ -169,11 +206,12 @@ RESPONSE_SCHEMA = {
 def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> None:
     """
     根据粗糙想法，调用 DeepSeek-V4 生成全套混合剧本数据，
-    并在目标目录下自动生成独立的四个剧本文件：
+    并在目标目录下自动生成独立的五个剧本文件：
     1. meta_and_roles.json
     2. instances_and_skills.json
-    3. network_topology.json
+    3. network_topology.json (通信信道层)
     4. skills.py
+    5. business_topology.json (业务合约层 + event_stream)
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -271,13 +309,19 @@ def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> No
         f4.write(skills_code)
     print(f"   [落盘成功] -> {file4_path}")
 
+    # 文件 5 分发：业务合约拓扑 + 事件流
+    file5_path = os.path.join(output_directory, "business_topology.json")
+    with open(file5_path, "w", encoding="utf-8") as f5:
+        json.dump(full_blueprint["business_topology"], f5, ensure_ascii=False, indent=2)
+    print(f"   [落盘成功] -> {file5_path}")
+
     # =====================================================================
     # 5. 生成合并版目录 {output_dir}_merged/
     # =====================================================================
     merged_dir = output_directory.rstrip("/\\") + "_merged"
     os.makedirs(merged_dir, exist_ok=True)
 
-    # 5a. 复制 skills.py
+    # 5a. 复制 skills.py（business_topology 已在合并 JSON 中，不单独复制）
     import shutil
     merged_skills = os.path.join(merged_dir, "skills.py")
     shutil.copyfile(file4_path, merged_skills)
@@ -288,6 +332,7 @@ def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> No
     meta_and_roles = full_blueprint["meta_and_roles"]
     containers = full_blueprint["instances_and_skills"]["container_instances"]
     topo = full_blueprint["network_topology"]
+    biz_topo = full_blueprint.get("business_topology", {})
     roles = meta_and_roles["roles"]
 
     # 从 edges 构建双向 peers
@@ -321,6 +366,7 @@ def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> No
         "scenario_metadata": meta_and_roles["scenario_metadata"],
         "global_topology_type": topo["global_topology_type"],
         "roles": merged_roles,
+        "business_topology": biz_topo,
     }
     merged_json_path = os.path.join(merged_dir, merged_name)
     with open(merged_json_path, "w", encoding="utf-8") as f:
@@ -332,12 +378,14 @@ def generate_and_dispatch_scenarios(user_idea: str, output_directory: str) -> No
     total_roles = len(roles)
     total_edges = sum(len(peer_map[rid]) for rid in roles) // 2  # 双向去重
     total_skills = sum(len(merged_roles[rid]["skills"]) for rid in roles)
+    total_biz_links = len(biz_topo.get("links", []))
     print(f"1. 声明节点总数: {total_roles}")
-    print(f"2. 拓扑连线总数: {total_edges}")
+    print(f"2. 通信信道连线: {total_edges} (固定)")
     print(f"3. 宏观拓扑结构: {topo['global_topology_type']}")
     print(f"4. 包含子网络数: {len(topo['sub_networks'])}")
     print(f"5. 技能实现总数: {total_skills} (已写入 skills.py)")
-    print(f"6. 合并版: {merged_dir}/")
+    print(f"6. 业务合约初始连线: {total_biz_links} (全部 NEGOTIATING，运行时演进)")
+    print(f"7. 合并版: {merged_dir}/")
 
 # =====================================================================
 # 4. 本地独立测试入口

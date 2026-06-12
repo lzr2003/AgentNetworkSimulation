@@ -1,0 +1,12 @@
+{
+  "links": [
+    { "source": "GOV_AGENCY", "target": "OP_MOBILE",  "status": "NEGOTIATING", "value": 500, "desc": "政务云基础通信服务" },
+    { "source": "GOV_AGENCY", "target": "OP_TELECOM", "status": "NEGOTIATING", "value": 550, "desc": "政务云专线备份" },
+    { "source": "FIN_BANK",   "target": "OP_UNICOM",  "status": "NEGOTIATING", "value": 600, "desc": "银行核心交易网络" },
+    { "source": "FIN_BANK",   "target": "OP_MOBILE",  "status": "NEGOTIATING", "value": 580, "desc": "银行灾备网络" },
+    { "source": "EDU_UNIV",   "target": "OP_TELECOM", "status": "NEGOTIATING", "value": 300, "desc": "高校科研专网" },
+    { "source": "MED_HOSP",   "target": "OP_MOBILE",  "status": "NEGOTIATING", "value": 400, "desc": "远程医疗5G专网" },
+    { "source": "IND_FACTORY", "target": "OP_UNICOM",  "status": "NEGOTIATING", "value": 450, "desc": "工业互联网5G专网" },
+    { "source": "IND_FACTORY", "target": "OP_MOBILE",  "status": "NEGOTIATING", "value": 420, "desc": "工厂备选方案" }
+  ]
+}

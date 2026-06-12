@@ -1,0 +1,68 @@
+{
+  "container_instances": {
+    "GOV_AGENCY": {
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "FIN_BANK": {
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "EDU_UNIV": {
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract"
+      ]
+    },
+    "MED_HOSP": {
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract"
+      ]
+    },
+    "IND_FACTORY": {
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "OP_MOBILE": {
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "OP_UNICOM": {
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "OP_TELECOM": {
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "REGULATOR": {
+      "skills": [
+        "investigate_complaint",
+        "impose_sanction",
+        "audit_market_share"
+      ]
+    },
+    "CONSULTANT": {
+      "skills": [
+        "provide_evaluation_report",
+        "broker_deal"
+      ]
+    }
+  }
+}

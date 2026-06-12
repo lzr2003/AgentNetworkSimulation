@@ -1,0 +1,200 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "sub_agencies",
+      "topology_type": "MESH",
+      "description": "机构间信息共享网络",
+      "nodes": [
+        "GOV_AGENCY",
+        "FIN_BANK",
+        "EDU_UNIV",
+        "MED_HOSP",
+        "IND_FACTORY"
+      ],
+      "edges": [
+        {
+          "source": "GOV_AGENCY",
+          "target": "FIN_BANK",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_101"
+        },
+        {
+          "source": "GOV_AGENCY",
+          "target": "EDU_UNIV",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_102"
+        },
+        {
+          "source": "FIN_BANK",
+          "target": "MED_HOSP",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_103"
+        },
+        {
+          "source": "EDU_UNIV",
+          "target": "IND_FACTORY",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_104"
+        },
+        {
+          "source": "MED_HOSP",
+          "target": "IND_FACTORY",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_105"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_operators",
+      "topology_type": "MESH",
+      "description": "运营商间竞争网络",
+      "nodes": [
+        "OP_MOBILE",
+        "OP_UNICOM",
+        "OP_TELECOM"
+      ],
+      "edges": [
+        {
+          "source": "OP_MOBILE",
+          "target": "OP_UNICOM",
+          "paradigm": "GAME",
+          "channel_id": "vlan_201"
+        },
+        {
+          "source": "OP_MOBILE",
+          "target": "OP_TELECOM",
+          "paradigm": "GAME",
+          "channel_id": "vlan_202"
+        },
+        {
+          "source": "OP_UNICOM",
+          "target": "OP_TELECOM",
+          "paradigm": "GAME",
+          "channel_id": "vlan_203"
+        }
+      ]
+    },
+    {
+      "sub_id": "sub_market",
+      "topology_type": "MESH",
+      "description": "招投标市场网络：机构、运营商、顾问、监管全部互通",
+      "nodes": [
+        "GOV_AGENCY",
+        "FIN_BANK",
+        "EDU_UNIV",
+        "MED_HOSP",
+        "IND_FACTORY",
+        "OP_MOBILE",
+        "OP_UNICOM",
+        "OP_TELECOM",
+        "CONSULTANT",
+        "REGULATOR"
+      ],
+      "edges": [
+        {
+          "source": "GOV_AGENCY",
+          "target": "OP_MOBILE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_301"
+        },
+        {
+          "source": "GOV_AGENCY",
+          "target": "OP_TELECOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_302"
+        },
+        {
+          "source": "FIN_BANK",
+          "target": "OP_UNICOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_303"
+        },
+        {
+          "source": "FIN_BANK",
+          "target": "OP_MOBILE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_304"
+        },
+        {
+          "source": "EDU_UNIV",
+          "target": "OP_TELECOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_305"
+        },
+        {
+          "source": "MED_HOSP",
+          "target": "OP_MOBILE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_306"
+        },
+        {
+          "source": "IND_FACTORY",
+          "target": "OP_UNICOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_307"
+        },
+        {
+          "source": "IND_FACTORY",
+          "target": "OP_MOBILE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_308"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "GOV_AGENCY",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_309"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "FIN_BANK",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_310"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "EDU_UNIV",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_311"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "MED_HOSP",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_312"
+        },
+        {
+          "source": "CONSULTANT",
+          "target": "IND_FACTORY",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_313"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "OP_MOBILE",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_314"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "OP_UNICOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_315"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "OP_TELECOM",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_316"
+        },
+        {
+          "source": "REGULATOR",
+          "target": "GOV_AGENCY",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_317"
+        }
+      ]
+    }
+  ]
+}

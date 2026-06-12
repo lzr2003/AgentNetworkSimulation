@@ -1,0 +1,255 @@
+{
+  "scenario_metadata": {
+    "title": "电信运营商招投标竞争与机构合作仿真",
+    "global_rules": "本仿真模拟三家电信运营商（移动、联通、电信）与多家机构（政府、金融、教育、医疗、工业）之间的招投标、签约、违约转投等动态合约过程。每轮各机构可评估当前签约运营商的性价比，决定是否转投；运营商可调整报价争夺市场。合约状态包括谈判、签约、违约闪烁、终止。",
+    "max_rounds": 20,
+    "stalemate_rounds": 4
+  },
+  "global_topology_type": "HYBRID_MESH",
+  "roles": {
+    "GOV_AGENCY": {
+      "name": "政府政务云",
+      "model_backbone": "openclaw",
+      "identity": "政府数字化办公室，负责政务云采购，注重安全与稳定性",
+      "core_goal": "在20轮内确保签约运营商的服务评分不低于85，且总预算结余>20%",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "CONSULTANT",
+        "EDU_UNIV",
+        "FIN_BANK",
+        "OP_MOBILE",
+        "OP_TELECOM",
+        "REGULATOR"
+      ],
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "FIN_BANK": {
+      "name": "金融银行",
+      "model_backbone": "claudecode",
+      "identity": "大型商业银行，追求低延迟与高可靠性，对价格敏感",
+      "core_goal": "在15轮内与至少两家运营商签约备份，总通信成本低于预算的75%",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "CONSULTANT",
+        "GOV_AGENCY",
+        "MED_HOSP",
+        "OP_MOBILE",
+        "OP_UNICOM"
+      ],
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "EDU_UNIV": {
+      "name": "教育高校",
+      "model_backbone": "openclaw",
+      "identity": "985高校，需要大带宽用于科研数据传输，预算有限",
+      "core_goal": "在10轮内签约一家运营商，带宽不低于10Gbps且年费低于500万",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "CONSULTANT",
+        "GOV_AGENCY",
+        "IND_FACTORY",
+        "OP_TELECOM"
+      ],
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract"
+      ]
+    },
+    "MED_HOSP": {
+      "name": "医疗医院",
+      "model_backbone": "openclaw",
+      "identity": "三甲医院，远程医疗需要低时延和高可靠性，合规要求严格",
+      "core_goal": "在8轮内与一家运营商签约，时延<10ms，并保持合约稳定至结束",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
+      "peers": [
+        "CONSULTANT",
+        "FIN_BANK",
+        "IND_FACTORY",
+        "OP_MOBILE"
+      ],
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract"
+      ]
+    },
+    "IND_FACTORY": {
+      "name": "工业工厂",
+      "model_backbone": "claudecode",
+      "identity": "智能制造工厂，需要5G专网，对性价比和定制化要求高",
+      "core_goal": "在10轮内签约一家运营商，且合同期内至少触发一次违约转投以测试灵活性",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "CONSULTANT",
+        "EDU_UNIV",
+        "MED_HOSP",
+        "OP_MOBILE",
+        "OP_UNICOM"
+      ],
+      "skills": [
+        "evaluate_proposals",
+        "sign_contract",
+        "terminate_contract_with_flash"
+      ]
+    },
+    "OP_MOBILE": {
+      "name": "移动运营商",
+      "model_backbone": "claudecode",
+      "identity": "中国移动，市场份额最大，覆盖广，价格中等",
+      "core_goal": "在20轮内至少与3家机构签约，总合同价值>1500万",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "FIN_BANK",
+        "GOV_AGENCY",
+        "IND_FACTORY",
+        "MED_HOSP",
+        "OP_TELECOM",
+        "OP_UNICOM",
+        "REGULATOR"
+      ],
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "OP_UNICOM": {
+      "name": "联通运营商",
+      "model_backbone": "openclaw",
+      "identity": "中国联通，优势在混合组网和政企服务，价格灵活",
+      "core_goal": "在20轮内至少与2家机构签约，并阻止至少一次客户转投",
+      "primary_interaction_paradigm": "ZERO_SUM_GAME",
+      "peers": [
+        "FIN_BANK",
+        "IND_FACTORY",
+        "OP_MOBILE",
+        "OP_TELECOM",
+        "REGULATOR"
+      ],
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "OP_TELECOM": {
+      "name": "电信运营商",
+      "model_backbone": "openclaw",
+      "identity": "中国电信，固网优势大，云网融合，价格偏高但服务优质",
+      "core_goal": "在20轮内至少与2家机构签约，并保持客户满意度>90",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "EDU_UNIV",
+        "GOV_AGENCY",
+        "OP_MOBILE",
+        "OP_UNICOM",
+        "REGULATOR"
+      ],
+      "skills": [
+        "submit_bidding_proposal",
+        "process_breach_notification"
+      ]
+    },
+    "REGULATOR": {
+      "name": "监管机构",
+      "model_backbone": "claudecode",
+      "identity": "通信管理局，监督市场公平竞争，防止垄断和恶意竞价",
+      "core_goal": "在20轮内确保无运营商市场份额超过50%，且无机构被强制绑定",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
+      "peers": [
+        "GOV_AGENCY",
+        "OP_MOBILE",
+        "OP_TELECOM",
+        "OP_UNICOM"
+      ],
+      "skills": [
+        "investigate_complaint",
+        "impose_sanction",
+        "audit_market_share"
+      ]
+    },
+    "CONSULTANT": {
+      "name": "咨询顾问",
+      "model_backbone": "openclaw",
+      "identity": "独立咨询公司，为机构提供运营商评估报告，收取咨询费",
+      "core_goal": "在20轮内至少促成3笔签约，每笔收取合同价值5%的咨询费",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "peers": [
+        "EDU_UNIV",
+        "FIN_BANK",
+        "GOV_AGENCY",
+        "IND_FACTORY",
+        "MED_HOSP"
+      ],
+      "skills": [
+        "provide_evaluation_report",
+        "broker_deal"
+      ]
+    }
+  },
+  "business_topology": {
+    "links": [
+      {
+        "source": "GOV_AGENCY",
+        "target": "OP_MOBILE",
+        "status": "NEGOTIATING",
+        "value": 500,
+        "desc": "政务云基础通信服务"
+      },
+      {
+        "source": "GOV_AGENCY",
+        "target": "OP_TELECOM",
+        "status": "NEGOTIATING",
+        "value": 550,
+        "desc": "政务云专线备份"
+      },
+      {
+        "source": "FIN_BANK",
+        "target": "OP_UNICOM",
+        "status": "NEGOTIATING",
+        "value": 600,
+        "desc": "银行核心交易网络"
+      },
+      {
+        "source": "FIN_BANK",
+        "target": "OP_MOBILE",
+        "status": "NEGOTIATING",
+        "value": 580,
+        "desc": "银行灾备网络"
+      },
+      {
+        "source": "EDU_UNIV",
+        "target": "OP_TELECOM",
+        "status": "NEGOTIATING",
+        "value": 300,
+        "desc": "高校科研专网"
+      },
+      {
+        "source": "MED_HOSP",
+        "target": "OP_MOBILE",
+        "status": "NEGOTIATING",
+        "value": 400,
+        "desc": "远程医疗5G专网"
+      },
+      {
+        "source": "IND_FACTORY",
+        "target": "OP_UNICOM",
+        "status": "NEGOTIATING",
+        "value": 450,
+        "desc": "工业互联网5G专网"
+      },
+      {
+        "source": "IND_FACTORY",
+        "target": "OP_MOBILE",
+        "status": "NEGOTIATING",
+        "value": 420,
+        "desc": "工厂备选方案"
+      }
+    ]
+  }
+}
