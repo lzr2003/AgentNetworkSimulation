@@ -72,6 +72,7 @@ _MESSAGE_BUS_URL = os.environ.get("MESSAGE_BUS_URL", "http://bus:9000")
 
 # ── WebSocket 连接池 ──
 _ws_clients: set = set()
+_server_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # ── 统一 Agent 日志缓冲区 ──
 _agent_logs: List[Dict[str, Any]] = []  # 内存/容器模式共用日志
@@ -84,6 +85,8 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _server_loop
+    _server_loop = asyncio.get_running_loop()
     yield
 
 # ═══════════════════════════════════════════════
@@ -141,6 +144,29 @@ def _control_agent_capture(created_cas: List[tuple], enabled: bool, requests_mod
         except Exception:
             results["failed"] += 1
     return results
+
+
+def _runtime_status_listener(ca, status: str, detail: Dict[str, Any] = None):
+    agent = AgentRegistry.get(ca.agent_id)
+    if agent:
+        agent.status = status
+        agent.container_url = ca.url
+    if not _ws_clients:
+        return
+
+    payload = {
+        "type": "agent_status",
+        "data": [a.get_status() for a in AgentRegistry.list_all()],
+    }
+    loop = _server_loop
+    if loop and loop.is_running():
+        loop.call_soon_threadsafe(lambda: asyncio.create_task(_ws_broadcast(payload)))
+
+
+def _get_runtime_with_status_listener() -> ContainerRuntime:
+    runtime = get_runtime()
+    runtime.set_status_listener(_runtime_status_listener)
+    return runtime
 
 
 # ═══════════════════════════════════════════════
@@ -600,7 +626,7 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
 
     import requests as _req
 
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     runtime.reset()  # 清理上一轮的容器占用标记，释放池容器
 
     created_cas = []
@@ -648,9 +674,9 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         try:
             _req.post(f"{_MESSAGE_BUS_URL}/register",
                       params={"agent_id": ca.agent_id, "url": ca.url, "name": ca.name}, timeout=3)
-            ca.status = "running"
+            runtime._set_status(ca, "idle", {"phase": "bus_register"})
         except Exception:
-            ca.status = "error"
+            runtime._set_status(ca, "error", {"phase": "bus_register", "error": "message_bus_register_failed"})
 
     # 获取事件触发器
     event_triggers = getattr(scene_def, 'event_triggers', []) or []
@@ -776,6 +802,10 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
         capture_stop = _control_agent_capture(created_cas, False, _req)
         logger.system("capture_control", "network_capture stopped",
                       details={"enabled": False, **capture_stop})
+        final_status = "stopped" if stop_reason == "user_stopped" else "idle"
+        for ca, _ in created_cas:
+            if ca.status != "error":
+                runtime._set_status(ca, final_status, {"phase": "simulation:finish", "stop_reason": stop_reason})
 
     _current_relationships = scene_def.workflow
     registry_agents = [a.get_status() for a in AgentRegistry.list_all()]
@@ -1232,7 +1262,7 @@ class ContainerAgentRequest(BaseModel):
 @app.post("/api/containers/create")
 async def container_create(req: ContainerAgentRequest):
     """创建并启动一个 Agent 容器/进程"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     config = _get_effective_llm_config()
     ca = runtime.create_agent(
         agent_id=req.agent_id, role=req.role,
@@ -1245,7 +1275,7 @@ async def container_create(req: ContainerAgentRequest):
 @app.post("/api/containers/{agent_id}/stop")
 async def container_stop(agent_id: str):
     """停止 Agent 容器"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     runtime.stop_agent(agent_id)
     return {"stopped": agent_id}
 
@@ -1253,7 +1283,7 @@ async def container_stop(agent_id: str):
 @app.post("/api/containers/stop-all")
 async def container_stop_all():
     """停止所有容器"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     runtime.stop_all()
     return {"stopped": "all"}
 
@@ -1261,28 +1291,28 @@ async def container_stop_all():
 @app.get("/api/containers/status")
 async def container_status():
     """获取所有容器状态"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     return runtime.get_all_status()
 
 
 @app.post("/api/containers/decide-all")
 async def container_decide_all():
     """触发所有容器 Agent 决策"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     return runtime.decide_all()
 
 
 @app.post("/api/containers/act-all")
 async def container_act_all():
     """触发所有容器 Agent 执行"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     return runtime.act_all()
 
 
 @app.post("/api/containers/round")
 async def container_round():
     """执行一轮：决策 → 执行"""
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
     return runtime.run_round()
 
 
@@ -1298,7 +1328,7 @@ def _get_controller() -> ContainerController:
     global _controller
     if _controller is None:
         _controller = ContainerController()
-        runtime = get_runtime()
+        runtime = _get_runtime_with_status_listener()
         _controller.set_runtime(runtime)
     return _controller
 
@@ -1307,7 +1337,7 @@ def _get_controller() -> ContainerController:
 async def controller_health():
     """获取所有 Agent 健康状态摘要"""
     ctrl = _get_controller()
-    runtime = get_runtime()
+    runtime = _get_runtime_with_status_listener()
 
     # 触发一次健康检查
     import asyncio
@@ -1778,27 +1808,11 @@ async def agent_log_ingest(req: Request):
         "trace": {},
     }
     logger.emit(record)
-    # 更新 AgentRegistry 中的 Agent 状态（悬浮框用）
-    action_type = body.get("action", "")
-    agent = AgentRegistry.get(agent_id)
-    if agent:
-        if event == "decide":
-            agent.status = "decided"
-        elif event == "act":
-            if action_type in ("send_message", "broadcast"):
-                agent.status = "messaged" if action_status == "success" else "send_failed"
-            else:
-                agent.status = "analyzed" if action_status == "success" else action_type
 
-    # 实时推送给前端（日志 + 状态更新）
+    # 实时推送给前端（仅日志；Agent 状态由 ContainerRuntime 的 API 生命周期驱动）
     if _ws_clients:
         asyncio.create_task(_ws_broadcast({
             "type": "agent_log", "data": _agent_logs[-1]
-        }))
-        # 同步推送 Agent 状态更新
-        agents_data = [a.get_status() for a in AgentRegistry.list_all()]
-        asyncio.create_task(_ws_broadcast({
-            "type": "agent_status", "data": agents_data
         }))
     return {"status": "ok", "total_logs": len(_agent_logs)}
 

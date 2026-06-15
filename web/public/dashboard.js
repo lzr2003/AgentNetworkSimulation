@@ -341,7 +341,7 @@ let _simState = new Map(); // agent_id → { x, y } in world coords
 
 // ============== Canvas Agent Rendering ==============
 const STATUS_COLORS = {
-  idle: '#38D5FF', running: '#2F8CFF', paused: '#FFBF5A',
+  idle: '#38D5FF', running: '#2F8CFF', thinking: '#BFEAFF', acting: '#58F0C2', paused: '#FFBF5A',
   stopped: '#FF4E5E', error: '#FF4E5E', created: '#7B8EA5',
   decided: '#8EA7FF', messaged: '#58F0C2', send_failed: '#FF4E5E', analyzed: '#BFEAFF',
 };
@@ -443,18 +443,6 @@ function drawCommandBackground(canvasW, canvasH, now) {
   ctx.moveTo(cx, cy - radius);
   ctx.lineTo(cx, cy + radius);
   ctx.stroke();
-
-  for (let deg = 0; deg < 360; deg += 15) {
-    const a = deg * Math.PI / 180;
-    const inner = radius - (deg % 45 === 0 ? 16 : 8);
-    const outer = radius + 2;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
-    ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
-    ctx.strokeStyle = deg % 45 === 0 ? 'rgba(191,234,255,0.32)' : 'rgba(95,187,255,0.15)';
-    ctx.lineWidth = deg % 45 === 0 ? 1.1 : 0.7;
-    ctx.stroke();
-  }
 
   if (!REDUCED_MOTION) {
     const sweep = (now * 0.00042) % (Math.PI * 2);
@@ -809,7 +797,7 @@ function drawAgents(agents, hoveredId, time) {
     const p = worldToScreen(wx, wy);
     const color = STATUS_COLORS[a.status] || '#7B8EA5';
     const pulse = REDUCED_MOTION ? 0.5 : (Math.sin(now / 360 + p.sx * 0.01) + 1) / 2;
-    const active = ['running', 'decided', 'messaged', 'analyzed'].includes(a.status);
+    const active = ['thinking', 'acting', 'running', 'decided', 'messaged', 'analyzed'].includes(a.status);
 
     ctx.save();
     ctx.shadowColor = color;
@@ -841,16 +829,18 @@ function drawAgents(agents, hoveredId, time) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const lock = r + 15;
-    const notch = 7;
-    ctx.strokeStyle = color + (hoveredId === a.agent_id ? 'ff' : 'bb');
-    ctx.lineWidth = hoveredId === a.agent_id ? 1.8 : 1.1;
-    ctx.beginPath();
-    ctx.moveTo(p.sx - lock, p.sy - lock + notch); ctx.lineTo(p.sx - lock, p.sy - lock); ctx.lineTo(p.sx - lock + notch, p.sy - lock);
-    ctx.moveTo(p.sx + lock - notch, p.sy - lock); ctx.lineTo(p.sx + lock, p.sy - lock); ctx.lineTo(p.sx + lock, p.sy - lock + notch);
-    ctx.moveTo(p.sx - lock, p.sy + lock - notch); ctx.lineTo(p.sx - lock, p.sy + lock); ctx.lineTo(p.sx - lock + notch, p.sy + lock);
-    ctx.moveTo(p.sx + lock - notch, p.sy + lock); ctx.lineTo(p.sx + lock, p.sy + lock); ctx.lineTo(p.sx + lock, p.sy + lock - notch);
-    ctx.stroke();
+    if (hoveredId === a.agent_id) {
+      const lock = r + 15;
+      const notch = 7;
+      ctx.strokeStyle = color + 'ff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(p.sx - lock, p.sy - lock + notch); ctx.lineTo(p.sx - lock, p.sy - lock); ctx.lineTo(p.sx - lock + notch, p.sy - lock);
+      ctx.moveTo(p.sx + lock - notch, p.sy - lock); ctx.lineTo(p.sx + lock, p.sy - lock); ctx.lineTo(p.sx + lock, p.sy - lock + notch);
+      ctx.moveTo(p.sx - lock, p.sy + lock - notch); ctx.lineTo(p.sx - lock, p.sy + lock); ctx.lineTo(p.sx - lock + notch, p.sy + lock);
+      ctx.moveTo(p.sx + lock - notch, p.sy + lock); ctx.lineTo(p.sx + lock, p.sy + lock); ctx.lineTo(p.sx + lock, p.sy + lock - notch);
+      ctx.stroke();
+    }
 
     // Core
     const core = ctx.createRadialGradient(p.sx - r * 0.3, p.sy - r * 0.35, 0, p.sx, p.sy, r);
@@ -924,7 +914,7 @@ function render() {
 render();
 
 // ============== Canvas Mouse Events ==============
-const statusLabel = { idle:'空闲', running:'运行中', paused:'已暂停', stopped:'已停止', error:'异常', created:'已创建', decided:'已决策', messaged:'已发送', send_failed:'发送失败', analyzed:'分析中' };
+const statusLabel = { idle:'空闲', running:'运行中', thinking:'思考中', acting:'执行中', paused:'已暂停', stopped:'已停止', error:'异常', created:'已创建', decided:'已决策', messaged:'已发送', send_failed:'发送失败', analyzed:'已分析' };
 const roleLabel = { scout:'侦察兵', commander:'指挥官', analyst:'分析师', support:'支援', brain:'Brain', 'claude-code':'Claude Code', openclaw:'OpenClaw', observer:'观察员' };
 const backendLabel = { brain:'Brain', 'claude-code':'Claude Code', openclaw:'OpenClaw' };
 
@@ -960,11 +950,18 @@ function showTooltip(agent, mx, my) {
   }
   tt.innerHTML = html;
   tt.style.display = 'block';
-  const panelRect = document.getElementById('canvas-stage')?.getBoundingClientRect();
-  const tx = mx + (panelRect?.left || 0);
-  const ty = my + (panelRect?.top || 0);
-  tt.style.left = Math.max(0, Math.min(tx + 16, window.innerWidth - 300)) + 'px';
-  tt.style.top = Math.max(4, ty - 10) + 'px';
+  const panel = document.getElementById('canvas-stage');
+  const panelRect = panel?.getBoundingClientRect();
+  const panelW = panelRect?.width || window.innerWidth;
+  const panelH = panelRect?.height || window.innerHeight;
+  const ttW = tt.offsetWidth || 300;
+  const ttH = tt.offsetHeight || 160;
+  let left = mx + 16;
+  let top = my - 10;
+  if (left + ttW > panelW - 8) left = mx - ttW - 16;
+  if (top + ttH > panelH - 8) top = panelH - ttH - 8;
+  tt.style.left = Math.max(8, Math.min(left, panelW - ttW - 8)) + 'px';
+  tt.style.top = Math.max(8, Math.min(top, panelH - ttH - 8)) + 'px';
 }
 
 // ── Find agent at screen (CSS-pixel) position ──

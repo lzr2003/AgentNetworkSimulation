@@ -11,7 +11,7 @@ import os
 import json
 import time
 import requests
-from typing import Dict, List, Any, Optional, Set
+from typing import Callable, Dict, List, Any, Optional, Set
 from dataclasses import dataclass, field
 
 
@@ -51,7 +51,42 @@ class ContainerRuntime:
         self.agents: Dict[str, ContainerAgent] = {}
         self._docker_client = None
         self._used_containers: Set[str] = set()  # 当前仿真已分配的容器名
+        self._status_listener: Optional[Callable[[ContainerAgent, str, Optional[Dict[str, Any]]], None]] = None
         self._init_docker()
+
+    def set_status_listener(self, callback: Optional[Callable[[ContainerAgent, str, Optional[Dict[str, Any]]], None]]):
+        self._status_listener = callback
+
+    def _set_status(self, ca: ContainerAgent, status: str, detail: Dict[str, Any] = None):
+        ca.status = status
+        if not self._status_listener:
+            return
+        try:
+            self._status_listener(ca, status, detail)
+        except Exception as exc:
+            print(f"[Runtime] status listener failed for {ca.agent_id}: {exc}")
+
+    def _infer_post_act_status(self, result: Dict[str, Any]) -> str:
+        if not isinstance(result, dict):
+            return "idle"
+        if result.get("error") or result.get("skill_error") or result.get("relay_error"):
+            return "error"
+        if result.get("status") in ("no_decision_yet", "waiting", "wait", "no_action"):
+            return "idle"
+
+        action = result.get("action") or {}
+        action_type = action.get("type") or action.get("action") or result.get("type") or result.get("action_type")
+
+        if result.get("relayed") is False:
+            return "send_failed"
+        if action_type in ("send_message", "broadcast"):
+            return "messaged" if result.get("relayed", True) else "send_failed"
+        if action_type in ("execute_skill", "search", "analyze", "plan") or "skill_result" in result:
+            skill_result = result.get("skill_result")
+            if isinstance(skill_result, dict) and (skill_result.get("status") == "error" or skill_result.get("error")):
+                return "error"
+            return "analyzed"
+        return "idle"
 
     def _init_docker(self):
         try:
@@ -162,7 +197,7 @@ class ContainerRuntime:
         try:
             container_name = self._get_or_create_container(backend)
             url = f"http://{container_name}:{port}"
-            status = "running"
+            status = "idle"
         except RuntimeError as exc:
             container_name = ""
             url = ""
@@ -178,6 +213,7 @@ class ContainerRuntime:
         ca._extra_meta = extra_meta or {}
         ca._assign_error = assign_error
         self.agents[agent_id] = ca
+        self._set_status(ca, status, {"phase": "assign"})
 
         return ca
 
@@ -190,7 +226,13 @@ class ContainerRuntime:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         results = []
         agents_list = list(self.agents.values())
+        if not agents_list:
+            return results
         def _decide(ca):
+            if not ca.url or ca.status == "error":
+                self._set_status(ca, "error", {"phase": "decide", "error": "agent_url_unavailable"})
+                return {"agent_id": ca.agent_id, "error": "agent_url_unavailable"}
+            self._set_status(ca, "thinking", {"phase": "decide:start"})
             try:
                 ctx = dict(context or {})
                 ctx["agent_id"] = ca.agent_id
@@ -204,8 +246,17 @@ class ContainerRuntime:
                 if em.get("action_space"): ctx["action_space"] = em["action_space"]
                 if em.get("background_rules"): ctx["background_rules"] = em["background_rules"]
                 resp = requests.post(f"{ca.url}/decide", json={"context": ctx}, timeout=60)
-                return resp.json()
+                resp.raise_for_status()
+                result = resp.json()
+                if isinstance(result, dict) and "agent_id" not in result:
+                    result["agent_id"] = ca.agent_id
+                if isinstance(result, dict) and result.get("error"):
+                    self._set_status(ca, "error", {"phase": "decide:error", "error": result.get("error")})
+                else:
+                    self._set_status(ca, "decided", {"phase": "decide:done"})
+                return result
             except Exception as e:
+                self._set_status(ca, "error", {"phase": "decide:exception", "error": str(e)})
                 return {"agent_id": ca.agent_id, "error": str(e)}
         with ThreadPoolExecutor(max_workers=min(10, len(agents_list))) as pool:
             futures = {pool.submit(_decide, ca): ca for ca in agents_list}
@@ -217,11 +268,23 @@ class ContainerRuntime:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         results = []
         agents_list = list(self.agents.values())
+        if not agents_list:
+            return results
         def _act(ca):
+            if not ca.url or ca.status == "error":
+                self._set_status(ca, "error", {"phase": "act", "error": "agent_url_unavailable"})
+                return {"agent_id": ca.agent_id, "error": "agent_url_unavailable"}
+            self._set_status(ca, "acting", {"phase": "act:start"})
             try:
                 resp = requests.post(f"{ca.url}/act", timeout=60)
-                return resp.json()
+                resp.raise_for_status()
+                result = resp.json()
+                if isinstance(result, dict) and "agent_id" not in result:
+                    result["agent_id"] = ca.agent_id
+                self._set_status(ca, self._infer_post_act_status(result), {"phase": "act:done"})
+                return result
             except Exception as e:
+                self._set_status(ca, "error", {"phase": "act:exception", "error": str(e)})
                 return {"agent_id": ca.agent_id, "error": str(e)}
         with ThreadPoolExecutor(max_workers=min(10, len(agents_list))) as pool:
             futures = {pool.submit(_act, ca): ca for ca in agents_list}
@@ -230,6 +293,9 @@ class ContainerRuntime:
         return results
 
     def stop_all(self):
+        for ca in list(self.agents.values()):
+            if ca.status != "error":
+                self._set_status(ca, "stopped", {"phase": "stop"})
         self.agents.clear()
 
     def reset(self):
