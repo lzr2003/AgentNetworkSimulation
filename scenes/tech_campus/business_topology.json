@@ -1,8 +1,7 @@
 {
   "links": [
-    { "source": "DEV_AI",  "target": "API_GW",  "status": "NEGOTIATING", "value": 2000, "desc": "AI训练→LLM推理API(南北向)" },
-    { "source": "DEV_IC",  "target": "API_GW",  "status": "NEGOTIATING", "value": 5000, "desc": "IC设计→EDA云仿真(南北向)" },
-    { "source": "COPILOT", "target": "API_GW",  "status": "NEGOTIATING", "value": 1000, "desc": "Copilot→LLM推理API(南北向,高频小包)" },
-    { "source": "DEV_BE",  "target": "API_GW",  "status": "NEGOTIATING", "value": 500,  "desc": "后端→Cloud Build API(南北向)" }
+    { "source": "DEV_AI",  "target": "EXTERNAL:LLM_INFERENCE", "status": "NEGOTIATING", "value": 2000, "desc": "AI训练→LLM推理API(南北向)" },
+    { "source": "DEV_IC",  "target": "EXTERNAL:EDA_CLOUD",    "status": "NEGOTIATING", "value": 5000, "desc": "IC设计→EDA云仿真(南北向)" },
+    { "source": "DEV_BE",  "target": "EXTERNAL:CLOUD_BUILD",  "status": "NEGOTIATING", "value": 500,  "desc": "后端→Cloud Build API(南北向)" }
   ]
 }

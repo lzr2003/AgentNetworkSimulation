@@ -4,37 +4,35 @@
     {
       "sub_id": "sub_dev_collab",
       "topology_type": "MESH",
-      "description": "开发团队内部协作网络：Dev/PM/Doc/Copilot 互通",
+      "description": "开发团队内部协作网络",
       "nodes": [
         "DEV_FE", "DEV_BE", "DEV_FW", "DEV_AI", "DEV_IC",
-        "PM", "DOC_WRITER", "COPILOT", "ARCHITECT", "QA"
+        "PM", "DOC_WRITER", "ARCHITECT", "QA", "DEV_OPS"
       ],
       "edges": [
-        { "source": "DEV_FE", "target": "COPILOT", "paradigm": "COLLABORATION", "channel_id": "vlan_copilot_fe" },
-        { "source": "DEV_BE", "target": "COPILOT", "paradigm": "COLLABORATION", "channel_id": "vlan_copilot_be" },
-        { "source": "DEV_FW", "target": "COPILOT", "paradigm": "COLLABORATION", "channel_id": "vlan_copilot_fw" },
-        { "source": "PM",      "target": "COPILOT", "paradigm": "COLLABORATION", "channel_id": "vlan_copilot_pm" },
-        { "source": "DOC_WRITER","target": "COPILOT", "paradigm": "COLLABORATION", "channel_id": "vlan_copilot_doc" },
-        { "source": "PM",      "target": "DEV_FE",  "paradigm": "COLLABORATION", "channel_id": "vlan_pm_fe" },
-        { "source": "PM",      "target": "DEV_BE",  "paradigm": "COLLABORATION", "channel_id": "vlan_pm_be" },
-        { "source": "PM",      "target": "DOC_WRITER","paradigm": "COLLABORATION", "channel_id": "vlan_pm_doc" },
-        { "source": "ARCHITECT","target": "DOC_WRITER","paradigm":"COLLABORATION", "channel_id": "vlan_arch_doc" },
-        { "source": "ARCHITECT","target": "DEV_FE", "paradigm": "COLLABORATION", "channel_id": "vlan_arch_fe" },
-        { "source": "ARCHITECT","target": "DEV_BE", "paradigm": "COLLABORATION", "channel_id": "vlan_arch_be" },
-        { "source": "ARCHITECT","target": "DEV_FW", "paradigm": "COLLABORATION", "channel_id": "vlan_arch_fw" },
-        { "source": "ARCHITECT","target": "DEV_AI", "paradigm": "COLLABORATION", "channel_id": "vlan_arch_ai" },
-        { "source": "ARCHITECT","target": "DEV_IC", "paradigm": "COLLABORATION", "channel_id": "vlan_arch_ic" },
-        { "source": "DEV_FE",  "target": "DEV_BE",  "paradigm": "COLLABORATION", "channel_id": "vlan_fe_be" },
-        { "source": "DEV_AI",  "target": "DEV_BE",  "paradigm": "COLLABORATION", "channel_id": "vlan_ai_be" }
+        { "source": "PM",       "target": "DEV_FE",   "paradigm": "COLLABORATION", "channel_id": "vlan_pm_fe" },
+        { "source": "PM",       "target": "DEV_BE",   "paradigm": "COLLABORATION", "channel_id": "vlan_pm_be" },
+        { "source": "PM",       "target": "DOC_WRITER","paradigm": "COLLABORATION", "channel_id": "vlan_pm_doc" },
+        { "source": "ARCHITECT","target": "DOC_WRITER","paradigm": "COLLABORATION", "channel_id": "vlan_arch_doc" },
+        { "source": "ARCHITECT","target": "DEV_FE",   "paradigm": "COLLABORATION", "channel_id": "vlan_arch_fe" },
+        { "source": "ARCHITECT","target": "DEV_BE",   "paradigm": "COLLABORATION", "channel_id": "vlan_arch_be" },
+        { "source": "ARCHITECT","target": "DEV_FW",   "paradigm": "COLLABORATION", "channel_id": "vlan_arch_fw" },
+        { "source": "ARCHITECT","target": "DEV_AI",   "paradigm": "COLLABORATION", "channel_id": "vlan_arch_ai" },
+        { "source": "ARCHITECT","target": "DEV_IC",   "paradigm": "COLLABORATION", "channel_id": "vlan_arch_ic" },
+        { "source": "DEV_FE",   "target": "DEV_BE",   "paradigm": "COLLABORATION", "channel_id": "vlan_fe_be" },
+        { "source": "DEV_AI",   "target": "DEV_BE",   "paradigm": "COLLABORATION", "channel_id": "vlan_ai_be" },
+        { "source": "DEV_OPS",  "target": "DEV_FE",   "paradigm": "COLLABORATION", "channel_id": "vlan_ops_fe" },
+        { "source": "DEV_OPS",  "target": "DEV_BE",   "paradigm": "COLLABORATION", "channel_id": "vlan_ops_be" },
+        { "source": "DEV_OPS",  "target": "ARCHITECT","paradigm": "COLLABORATION", "channel_id": "vlan_ops_arch" }
       ]
     },
     {
       "sub_id": "sub_repo_ci",
       "topology_type": "STAR",
-      "description": "代码仓库/CI/CD中心：所有内容生产者连接 REPO_ADMIN",
+      "description": "代码仓库/CI/CD中心：所有内容生产者连接 REPO_ADMIN 和 DEV_OPS",
       "nodes": [
         "DEV_FE", "DEV_BE", "DEV_FW", "DEV_AI", "DEV_IC",
-        "ARCHITECT", "PM", "DOC_WRITER", "QA", "COPILOT", "REPO_ADMIN"
+        "ARCHITECT", "PM", "DOC_WRITER", "QA", "REPO_ADMIN", "DEV_OPS"
       ],
       "edges": [
         { "source": "DEV_FE",   "target": "REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_fe" },
@@ -46,21 +44,7 @@
         { "source": "PM",       "target": "REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_pm" },
         { "source": "DOC_WRITER","target":"REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_doc" },
         { "source": "QA",       "target": "REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_qa" },
-        { "source": "COPILOT",  "target": "REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_copilot" }
-      ]
-    },
-    {
-      "sub_id": "sub_external_api",
-      "topology_type": "STAR",
-      "description": "外部API网关：所有需要外部资源的节点通过 API_GW 出站",
-      "nodes": [
-        "DEV_AI", "DEV_IC", "COPILOT", "DEV_BE", "API_GW"
-      ],
-      "edges": [
-        { "source": "DEV_AI",  "target": "API_GW", "paradigm": "NEGOTIATION", "channel_id": "vlan_gw_ai" },
-        { "source": "DEV_IC",  "target": "API_GW", "paradigm": "NEGOTIATION", "channel_id": "vlan_gw_ic" },
-        { "source": "COPILOT", "target": "API_GW", "paradigm": "NEGOTIATION", "channel_id": "vlan_gw_copilot" },
-        { "source": "DEV_BE",  "target": "API_GW", "paradigm": "NEGOTIATION", "channel_id": "vlan_gw_be" }
+        { "source": "DEV_OPS",  "target": "REPO_ADMIN", "paradigm": "COLLABORATION", "channel_id": "vlan_repo_ops" }
       ]
     },
     {

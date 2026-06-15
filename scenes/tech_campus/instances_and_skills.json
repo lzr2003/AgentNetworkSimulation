@@ -2,20 +2,17 @@
   "container_instances": {
     "DEV_FE": {
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_BE": {
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_FW": {
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_AI": {
@@ -26,8 +23,8 @@
     },
     "DEV_IC": {
       "skills": [
-        "request_external_api",
-        "submit_design"
+        "submit_design",
+        "request_external_api"
       ]
     },
     "ARCHITECT": {
@@ -38,26 +35,18 @@
     },
     "PM": {
       "skills": [
-        "write_document",
-        "request_copilot_assist"
+        "write_document"
       ]
     },
     "DOC_WRITER": {
       "skills": [
-        "write_document",
-        "request_copilot_assist"
+        "write_document"
       ]
     },
     "QA": {
       "skills": [
         "run_test",
         "notify_team"
-      ]
-    },
-    "COPILOT": {
-      "skills": [
-        "assist_code",
-        "assist_document"
       ]
     },
     "REPO_ADMIN": {
@@ -67,10 +56,10 @@
         "notify_team"
       ]
     },
-    "API_GW": {
+    "DEV_OPS": {
       "skills": [
-        "rate_limit",
-        "forward_request"
+        "trigger_ci_cd",
+        "handle_push"
       ]
     }
   }

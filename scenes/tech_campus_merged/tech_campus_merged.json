@@ -15,15 +15,14 @@
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
         "ARCHITECT",
-        "COPILOT",
         "DEV_BE",
+        "DEV_OPS",
         "PM",
         "QA",
         "REPO_ADMIN"
       ],
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_BE": {
@@ -33,18 +32,16 @@
       "core_goal": "在10轮内完成2个后端微服务的代码提交并通过CI",
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
-        "API_GW",
         "ARCHITECT",
-        "COPILOT",
         "DEV_AI",
         "DEV_FE",
+        "DEV_OPS",
         "PM",
         "QA",
         "REPO_ADMIN"
       ],
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_FW": {
@@ -55,13 +52,11 @@
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
         "ARCHITECT",
-        "COPILOT",
         "QA",
         "REPO_ADMIN"
       ],
       "skills": [
-        "submit_code",
-        "request_copilot_assist"
+        "submit_code"
       ]
     },
     "DEV_AI": {
@@ -71,7 +66,6 @@
       "core_goal": "在10轮内完成1次模型训练任务并提交模型文件",
       "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
       "peers": [
-        "API_GW",
         "ARCHITECT",
         "DEV_BE",
         "QA",
@@ -89,14 +83,13 @@
       "core_goal": "在10轮内通过外部EDA云仿真资源完成1次芯片仿真",
       "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
       "peers": [
-        "API_GW",
         "ARCHITECT",
         "QA",
         "REPO_ADMIN"
       ],
       "skills": [
-        "request_external_api",
-        "submit_design"
+        "submit_design",
+        "request_external_api"
       ]
     },
     "ARCHITECT": {
@@ -111,6 +104,7 @@
         "DEV_FE",
         "DEV_FW",
         "DEV_IC",
+        "DEV_OPS",
         "DOC_WRITER",
         "QA",
         "REPO_ADMIN"
@@ -127,15 +121,13 @@
       "core_goal": "在10轮内输出3份产品需求文档",
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
-        "COPILOT",
         "DEV_BE",
         "DEV_FE",
         "DOC_WRITER",
         "REPO_ADMIN"
       ],
       "skills": [
-        "write_document",
-        "request_copilot_assist"
+        "write_document"
       ]
     },
     "DOC_WRITER": {
@@ -146,13 +138,11 @@
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
         "ARCHITECT",
-        "COPILOT",
         "PM",
         "REPO_ADMIN"
       ],
       "skills": [
-        "write_document",
-        "request_copilot_assist"
+        "write_document"
       ]
     },
     "QA": {
@@ -175,26 +165,6 @@
         "notify_team"
       ]
     },
-    "COPILOT": {
-      "name": "AI编程助手Copilot",
-      "model_backbone": "claudecode",
-      "identity": "基础平台部AI助手，辅助代码生成与文档",
-      "core_goal": "在10轮内响应10次代码辅助请求",
-      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
-      "peers": [
-        "API_GW",
-        "DEV_BE",
-        "DEV_FE",
-        "DEV_FW",
-        "DOC_WRITER",
-        "PM",
-        "REPO_ADMIN"
-      ],
-      "skills": [
-        "assist_code",
-        "assist_document"
-      ]
-    },
     "REPO_ADMIN": {
       "name": "内部代码仓库管理员",
       "model_backbone": "openclaw",
@@ -203,12 +173,12 @@
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
         "ARCHITECT",
-        "COPILOT",
         "DEV_AI",
         "DEV_BE",
         "DEV_FE",
         "DEV_FW",
         "DEV_IC",
+        "DEV_OPS",
         "DOC_WRITER",
         "PM",
         "QA"
@@ -219,21 +189,21 @@
         "notify_team"
       ]
     },
-    "API_GW": {
-      "name": "外部API网关",
-      "model_backbone": "claudecode",
-      "identity": "基础平台部API网关，控制外部API调用限流",
-      "core_goal": "在10轮内处理20次API请求，限流不超过5次",
-      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+    "DEV_OPS": {
+      "name": "DevOps运维工程师",
+      "model_backbone": "openclaw",
+      "identity": "基础平台部运维，负责CI/CD流水线和监控",
+      "core_goal": "在10轮内搭建并维护3条CI/CD流水线，故障恢复时间<5min",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION",
       "peers": [
-        "COPILOT",
-        "DEV_AI",
+        "ARCHITECT",
         "DEV_BE",
-        "DEV_IC"
+        "DEV_FE",
+        "REPO_ADMIN"
       ],
       "skills": [
-        "rate_limit",
-        "forward_request"
+        "trigger_ci_cd",
+        "handle_push"
       ]
     }
   },
@@ -241,28 +211,21 @@
     "links": [
       {
         "source": "DEV_AI",
-        "target": "API_GW",
+        "target": "EXTERNAL:LLM_INFERENCE",
         "status": "NEGOTIATING",
         "value": 2000,
         "desc": "AI训练→LLM推理API(南北向)"
       },
       {
         "source": "DEV_IC",
-        "target": "API_GW",
+        "target": "EXTERNAL:EDA_CLOUD",
         "status": "NEGOTIATING",
         "value": 5000,
         "desc": "IC设计→EDA云仿真(南北向)"
       },
       {
-        "source": "COPILOT",
-        "target": "API_GW",
-        "status": "NEGOTIATING",
-        "value": 1000,
-        "desc": "Copilot→LLM推理API(南北向,高频小包)"
-      },
-      {
         "source": "DEV_BE",
-        "target": "API_GW",
+        "target": "EXTERNAL:CLOUD_BUILD",
         "status": "NEGOTIATING",
         "value": 500,
         "desc": "后端→Cloud Build API(南北向)"

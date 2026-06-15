@@ -69,13 +69,6 @@
       "core_goal": "在10轮内执行3次自动化测试并报告结果",
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
     },
-    "COPILOT": {
-      "name": "AI编程助手Copilot",
-      "model_backbone": "claudecode",
-      "identity": "基础平台部AI助手，辅助代码生成与文档",
-      "core_goal": "在10轮内响应10次代码辅助请求",
-      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
-    },
     "REPO_ADMIN": {
       "name": "内部代码仓库管理员",
       "model_backbone": "openclaw",
@@ -83,12 +76,12 @@
       "core_goal": "在10轮内处理5次代码推送和2次镜像推送",
       "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
     },
-    "API_GW": {
-      "name": "外部API网关",
-      "model_backbone": "claudecode",
-      "identity": "基础平台部API网关，控制外部API调用限流",
-      "core_goal": "在10轮内处理20次API请求，限流不超过5次",
-      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    "DEV_OPS": {
+      "name": "DevOps运维工程师",
+      "model_backbone": "openclaw",
+      "identity": "基础平台部运维，负责CI/CD流水线和监控",
+      "core_goal": "在10轮内搭建并维护3条CI/CD流水线，故障恢复时间<5min",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
     }
   }
 }
