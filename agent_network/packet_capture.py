@@ -4,10 +4,10 @@ Agent 容器内 tcpdump 网络抓包 — 捕获外部 LLM API 访问的 TCP/TLS 
 写入 global.jsonl (category: network_capture)，由 LOG_LLM_API=1 控制。
 不做 HTTPS 解密，不记录 payload 明文。
 
-用法（agent_server.py 启动时调用一次）:
+用法（由仿真生命周期接口控制）:
   from agent_network.packet_capture import start_capture, stop_capture
   start_capture(agent_id=AGENT_ID, server_url=SERVER_URL)
-  # ... Agent 运行 ...
+  # ... 仿真运行 ...
   stop_capture()
 """
 
@@ -44,6 +44,7 @@ TCPDUMP_LINE = re.compile(
 _capture_process: Optional[subprocess.Popen] = None
 _capture_thread: Optional[threading.Thread] = None
 _running = False
+_capture_lock = threading.Lock()
 
 
 def _now_iso() -> str:
@@ -123,12 +124,12 @@ def _is_llm_traffic(parsed: dict, llm_hosts: List[str]) -> bool:
     return False
 
 
-def _flush_aggregated(agent_id: str, server_url: str, connections: dict):
+def _flush_aggregated(agent_id: str, server_url: str, connections: dict, force: bool = False):
     """将聚合的连接数据写入日志"""
     now = time.time()
     expired = []
     for key, data in list(connections.items()):
-        if now - data["last_time"] < AGGREGATION_WINDOW:
+        if not force and now - data["last_time"] < AGGREGATION_WINDOW:
             continue
         expired.append(key)
         record = {
@@ -189,6 +190,7 @@ def _capture_loop(agent_id: str, server_url: str):
             text=True, bufsize=1,
         )
     except FileNotFoundError:
+        _running = False
         record = {
             "timestamp": _now_iso(), "level": "WARN",
             "source": "agent", "component": agent_id,
@@ -198,6 +200,7 @@ def _capture_loop(agent_id: str, server_url: str):
         _send_record(server_url, record)
         return
     except PermissionError:
+        _running = False
         record = {
             "timestamp": _now_iso(), "level": "WARN",
             "source": "agent", "component": agent_id,
@@ -207,7 +210,6 @@ def _capture_loop(agent_id: str, server_url: str):
         _send_record(server_url, record)
         return
 
-    _running = True
     _send_record(server_url, {
         "timestamp": _now_iso(),
         "level": "INFO",
@@ -283,8 +285,8 @@ def _capture_loop(agent_id: str, server_url: str):
             _flush_aggregated(agent_id, server_url, connections)
             last_flush = time.time()
 
-    # 退出前清空
-    _flush_aggregated(agent_id, server_url, connections)
+    # 非主动停止时才冲刷缓冲；仿真停止时不补写尾部 llm_api_packet。
+    _flush_aggregated(agent_id, server_url, connections, force=_running)
     stderr = ""
     returncode = _capture_process.poll() if _capture_process else None
     try:
@@ -301,29 +303,45 @@ def _capture_loop(agent_id: str, server_url: str):
         "message": f"[{agent_id}] tcpdump exited rc={returncode}",
         "payload": {"returncode": returncode, "stderr": stderr[-500:]},
     })
+    _running = False
 
 
 def start_capture(agent_id: str = "", server_url: str = "http://srv:8000"):
     """启动后台抓包（由 agent_server main 调用）"""
-    global _capture_thread
+    global _capture_thread, _running
     if not _llm_capture_enabled():
-        return
-    _capture_thread = threading.Thread(
-        target=_capture_loop,
-        args=(agent_id, server_url),
-        daemon=True,
-    )
-    _capture_thread.start()
+        return {"status": "disabled"}
+    with _capture_lock:
+        if _running or (_capture_thread and _capture_thread.is_alive()):
+            return {"status": "running"}
+        _running = True
+        _capture_thread = threading.Thread(
+            target=_capture_loop,
+            args=(agent_id, server_url),
+            daemon=True,
+        )
+        _capture_thread.start()
+    return {"status": "started"}
 
 
 def stop_capture():
     """停止抓包"""
-    global _running, _capture_process
-    _running = False
-    if _capture_process:
+    global _running, _capture_process, _capture_thread
+    with _capture_lock:
+        _running = False
+        proc = _capture_process
+    if proc:
         try:
-            _capture_process.terminate()
-            _capture_process.wait(timeout=2)
+            proc.terminate()
+            proc.wait(timeout=2)
         except Exception:
-            _capture_process.kill()
-        _capture_process = None
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        finally:
+            _capture_process = None
+    if _capture_thread and _capture_thread.is_alive() and threading.current_thread() is not _capture_thread:
+        _capture_thread.join(timeout=2)
+    _capture_thread = None
+    return {"status": "stopped"}

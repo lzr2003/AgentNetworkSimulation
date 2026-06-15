@@ -29,6 +29,7 @@ from typing import List, Optional, Dict, Any
 import uvicorn, requests
 
 from agent_network.comm import RemoteBus
+from agent_network.packet_capture import start_capture, stop_capture
 
 # ═══════════════════════════════════════════════
 # Agent 身份 (环境变量)
@@ -837,9 +838,22 @@ async def clear():
     return {"cleared": True}
 
 
+@app.post("/capture/start")
+async def capture_start():
+    """启动当前 Agent 的 LLM API 网络抓包。"""
+    return start_capture(agent_id=AGENT_ID, server_url=SERVER_URL)
+
+
+@app.post("/capture/stop")
+async def capture_stop():
+    """停止当前 Agent 的 LLM API 网络抓包。"""
+    return stop_capture()
+
+
 @app.post("/reset")
 async def reset_state():
     global turn, last_action, _allowed_targets, _current_effective_id, _current_effective_name
+    stop_capture()
     turn = 0
     last_action = {}
     _allowed_targets = set()
@@ -879,10 +893,6 @@ if __name__ == "__main__":
 
     print(f"[Agent {backend_label}] {AGENT_NAME} ({AGENT_ROLE}) starting on port {AGENT_PORT}")
     print(f"[Agent {backend_label}] Backend: {BACKEND} | Model: {MODEL} | Goal: {AGENT_CORE_GOAL or 'N/A'}")
-
-    # 启动 LLM API 网络抓包（LOG_LLM_API=1 时生效）
-    from agent_network.packet_capture import start_capture, stop_capture
-    start_capture(agent_id=AGENT_ID, server_url=SERVER_URL)
 
     try:
         uvicorn.run(app, host="0.0.0.0", port=AGENT_PORT, log_level="info")

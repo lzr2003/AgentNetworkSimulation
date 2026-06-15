@@ -54,7 +54,7 @@ import os
 import time
 import threading
 from enum import Enum
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from collections import deque
 
@@ -67,11 +67,50 @@ class LogLevel(Enum):
 
 # ── 统一日志记录 schema ──
 
+_LOG_TZ = timezone(timedelta(hours=8))
+
+
+def _format_log_time(dt: datetime, timespec: str = "milliseconds") -> str:
+    """Format timestamps as Beijing time without a timezone suffix."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_LOG_TZ)
+    dt = dt.astimezone(_LOG_TZ)
+    if timespec == "seconds":
+        return dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
+
+
+def current_log_timestamp(timespec: str = "milliseconds") -> str:
+    """Current Beijing-time timestamp for global logs."""
+    return _format_log_time(datetime.now(_LOG_TZ), timespec=timespec)
+
+
+def normalize_log_timestamp(value: Any = "", timespec: str = "milliseconds") -> str:
+    """
+    Normalize incoming timestamps to the global log timezone.
+
+    Naive timestamps in this project are already Beijing-local log time. Browser
+    clients may send explicit UTC timestamps with a Z suffix; those are converted
+    to the same Beijing-local display format.
+    """
+    if not value:
+        return current_log_timestamp(timespec=timespec)
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        except Exception:
+            return current_log_timestamp(timespec=timespec)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_LOG_TZ)
+    return _format_log_time(dt, timespec=timespec)
+
 def _base_record(level: str, source: str, component: str, category: str,
                  event: str, message: str = "") -> Dict:
     """构造一条统一 schema 日志记录的骨架"""
     return {
-        "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+        "timestamp": current_log_timestamp(),
         "seq": 0,
         "session_id": "",
         "level": level,
@@ -114,7 +153,7 @@ class SimulationLogger:
             "by_level": {},
             "by_event": {},
             "by_agent": {},
-            "start_time": datetime.now().isoformat(timespec="seconds"),
+            "start_time": current_log_timestamp(timespec="seconds"),
         }
         self._seq = 0
         self._session_id = ""
@@ -144,7 +183,7 @@ class SimulationLogger:
 
     def start_session(self, scene_name: str):
         """开始新的仿真会话 — 创建 {场景名}_{时间戳}/ 文件夹"""
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        ts = datetime.now(_LOG_TZ).strftime("%Y%m%d_%H%M%S_%f")
         safe_name = scene_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
         self._session_id = f"{safe_name}_{ts}"
         self._session_dir = os.path.join(self._log_dir, self._session_id)
@@ -205,7 +244,7 @@ class SimulationLogger:
         record["seq"] = self._next_seq()
         record["session_id"] = self._session_id
         if not record.get("timestamp"):
-            record["timestamp"] = datetime.now().isoformat(timespec="milliseconds")
+            record["timestamp"] = current_log_timestamp()
 
         self._append_memory(record)
         self._write_file(record)
@@ -218,8 +257,7 @@ class SimulationLogger:
         record.setdefault("level", "INFO")
         record["seq"] = self._next_seq()
         record["session_id"] = self._session_id
-        if not record.get("timestamp"):
-            record["timestamp"] = datetime.now().isoformat(timespec="milliseconds")
+        record["timestamp"] = normalize_log_timestamp(record.get("timestamp", ""))
         self._append_memory(record)
         self._write_file(record)
 
@@ -441,7 +479,7 @@ class SimulationLogger:
             self._entries.clear()
             self._stats = {
                 "total": 0, "by_level": {}, "by_event": {}, "by_agent": {},
-                "start_time": datetime.now().isoformat(timespec="seconds"),
+                "start_time": current_log_timestamp(timespec="seconds"),
             }
         self._seq = 0
         self._session_id = ""

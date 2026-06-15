@@ -41,7 +41,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 import uvicorn
 import asyncio
 import uuid
@@ -55,7 +55,7 @@ from agent_network.container_runtime import get_runtime, ContainerRuntime
 from agent_network.container_controller import ContainerController
 from agent_network.workflow import WorkflowEngine, WorkflowDAG, WorkflowStep
 from agent_network.agent_scheduler import TaskPriority, TaskStatus
-from agent_network.logger import SimulationLogger, LogLevel, get_logger
+from agent_network.logger import SimulationLogger, LogLevel, get_logger, normalize_log_timestamp
 from agent_network.event_bus import PacketRecorder
 from agent_network.tool import ToolRegistry
 from agent_network.skill import SkillRegistry
@@ -63,22 +63,9 @@ from agent_network.skill import SkillRegistry
 # ── 统一日志器 ──
 logger = get_logger()
 
-# ── 北京时间转换 ──
-_BEIJING_TZ = timezone(timedelta(hours=8))
-
 def _beijing_time(utc_str: str = "") -> str:
     """将 UTC ISO 时间戳转为北京时间 ISO 格式: YYYY-MM-DDTHH:MM:SS.sss"""
-    if utc_str:
-        try:
-            dt = datetime.fromisoformat(utc_str.replace('Z', '+00:00'))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            dt = dt.astimezone(_BEIJING_TZ)
-        except Exception:
-            dt = datetime.now(_BEIJING_TZ)
-    else:
-        dt = datetime.now(_BEIJING_TZ)
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
+    return normalize_log_timestamp(utc_str)
 
 # ── 服务发现 ──
 _MESSAGE_BUS_URL = os.environ.get("MESSAGE_BUS_URL", "http://bus:9000")
@@ -131,9 +118,29 @@ service_state = {
     "active_engine": None,
 }
 _simulation_stop_requested = False  # 仿真停止标志
+_simulation_active = False          # 仅仿真运行期间接收 network_capture 包日志
 
 _current_relationships: List[Dict[str, Any]] = []  # 当前关系链
 _termination_config: Dict[str, int] = {"max_rounds": 10, "stalemate_rounds": 3}  # 终止条件默认值
+
+
+def _control_agent_capture(created_cas: List[tuple], enabled: bool, requests_module) -> Dict[str, Any]:
+    """启动/停止本轮已分配 Agent 容器内的 tcpdump 抓包。"""
+    path = "/capture/start" if enabled else "/capture/stop"
+    results = {"requested": 0, "ok": 0, "failed": 0}
+    for ca, _ in created_cas:
+        if not getattr(ca, "url", "") or ca.status == "error":
+            continue
+        results["requested"] += 1
+        try:
+            resp = requests_module.post(f"{ca.url}{path}", timeout=3)
+            if resp.ok:
+                results["ok"] += 1
+            else:
+                results["failed"] += 1
+        except Exception:
+            results["failed"] += 1
+    return results
 
 
 # ═══════════════════════════════════════════════
@@ -584,7 +591,7 @@ def _setup_scene(scene_def: SceneDefinition) -> Dict[str, Any]:
 
 def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]:
     """Step 2: 拉起 Agent 并运行仿真 — Docker 不可用时回退到直连模式"""
-    global _current_relationships
+    global _current_relationships, _simulation_active
 
     if scene_def is None:
         scene_def = _pending_scene_def
@@ -669,6 +676,11 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
     except Exception:
         pass  # message_bus 不可达时不阻塞仿真
 
+    _simulation_active = True
+    capture_start = _control_agent_capture(created_cas, True, _req)
+    logger.system("capture_control", "network_capture started",
+                  details={"enabled": True, **capture_start})
+
     # ── 生成会话 ID ──
     talk_id = f"talk-{uuid.uuid4().hex[:12]}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
@@ -692,72 +704,78 @@ def _launch_containers(config: Dict[str, str], scene_def=None) -> Dict[str, Any]
 
     global _simulation_stop_requested
     _simulation_stop_requested = False
-    for round_num in range(MAX_ROUNDS):
-        if _simulation_stop_requested:
-            stop_reason = "user_stopped"
-            logger.system("simulation_stopped", "用户手动停止仿真", details={"round": round_num + 1})
-            break
-        current_turn = round_num + 1
+    try:
+        for round_num in range(MAX_ROUNDS):
+            if _simulation_stop_requested:
+                stop_reason = "user_stopped"
+                logger.system("simulation_stopped", "用户手动停止仿真", details={"round": round_num + 1})
+                break
+            current_turn = round_num + 1
 
-        # 检查事件触发
-        for trigger in event_triggers:
-            if trigger.get("turn") == current_turn:
-                event_payload = {
-                    "event_name": trigger.get("event_name", "未知事件"),
-                    "impact": trigger.get("impact", ""),
-                    "turn": current_turn,
-                }
-                logger.event_trigger(current_turn, event_payload['event_name'], event_payload['impact'])
-                for ca, _ in created_cas:
-                    try:
-                        _req.post(f"{ca.url}/event", json=event_payload, timeout=5)
-                    except Exception:
-                        pass
+            # 检查事件触发
+            for trigger in event_triggers:
+                if trigger.get("turn") == current_turn:
+                    event_payload = {
+                        "event_name": trigger.get("event_name", "未知事件"),
+                        "impact": trigger.get("impact", ""),
+                        "turn": current_turn,
+                    }
+                    logger.event_trigger(current_turn, event_payload['event_name'], event_payload['impact'])
+                    for ca, _ in created_cas:
+                        try:
+                            _req.post(f"{ca.url}/event", json=event_payload, timeout=5)
+                        except Exception:
+                            pass
 
-        context = {
-            "round": current_turn,
-            "total_rounds": MAX_ROUNDS,
-            "scene": scene_def.scene_name,
-            "agents": [{"id": ca.agent_id, "role": ca.role, "name": ca.name}
-                       for ca, _ in created_cas],
-            "tasks": {ca.agent_id: tasks for ca, tasks in created_cas},
-            "comm_matrix": {k: list(v) for k, v in _comm_matrix.items()},
-            "channel_map": channel_map,
-            "talk": talk_id,
-        }
-        round_result = runtime.run_round(context)
-        results_log.append(round_result)
+            context = {
+                "round": current_turn,
+                "total_rounds": MAX_ROUNDS,
+                "scene": scene_def.scene_name,
+                "agents": [{"id": ca.agent_id, "role": ca.role, "name": ca.name}
+                           for ca, _ in created_cas],
+                "tasks": {ca.agent_id: tasks for ca, tasks in created_cas},
+                "comm_matrix": {k: list(v) for k, v in _comm_matrix.items()},
+                "channel_map": channel_map,
+                "talk": talk_id,
+            }
+            round_result = runtime.run_round(context)
+            results_log.append(round_result)
 
-        # 同步扫雷引擎中的士兵位置到 AgentRegistry
-        if _active_skills_module and hasattr(_active_skills_module, '_engine'):
-            eng = _active_skills_module._engine
-            registry = getattr(eng, 'round_action_registry', {})
-            if registry:
-                latest_round = max(registry.keys())
-                for soldier_id, (gx, gy) in registry[latest_round].items():
-                    agent = AgentRegistry.get(soldier_id)
-                    if agent:
-                        agent.x = float(gx)
-                        agent.y = float(gy)
+            # 同步扫雷引擎中的士兵位置到 AgentRegistry
+            if _active_skills_module and hasattr(_active_skills_module, '_engine'):
+                eng = _active_skills_module._engine
+                registry = getattr(eng, 'round_action_registry', {})
+                if registry:
+                    latest_round = max(registry.keys())
+                    for soldier_id, (gx, gy) in registry[latest_round].items():
+                        agent = AgentRegistry.get(soldier_id)
+                        if agent:
+                            agent.x = float(gx)
+                            agent.y = float(gy)
 
-        # 僵局检测：本轮是否有实际消息产生
-        decisions = round_result.get("decisions", [])
-        messages_sent = sum(
-            1 for d in decisions
-            if d.get("type") in ("send_message", "broadcast", "execute_skill")
-        )
-        if messages_sent == 0:
-            silent_rounds += 1
+            # 僵局检测：本轮是否有实际消息产生
+            decisions = round_result.get("decisions", [])
+            messages_sent = sum(
+                1 for d in decisions
+                if d.get("type") in ("send_message", "broadcast", "execute_skill")
+            )
+            if messages_sent == 0:
+                silent_rounds += 1
+            else:
+                silent_rounds = 0
+
+            if silent_rounds >= stalemate_threshold:
+                stop_reason = f"stalemate_{stalemate_threshold}_silent_rounds"
+                break
+
+            time.sleep(0.3)
         else:
-            silent_rounds = 0
-
-        if silent_rounds >= stalemate_threshold:
-            stop_reason = f"stalemate_{stalemate_threshold}_silent_rounds"
-            break
-
-        time.sleep(0.3)
-    else:
-        stop_reason = "hard_limit"
+            stop_reason = "hard_limit"
+    finally:
+        _simulation_active = False
+        capture_stop = _control_agent_capture(created_cas, False, _req)
+        logger.system("capture_control", "network_capture stopped",
+                      details={"enabled": False, **capture_stop})
 
     _current_relationships = scene_def.workflow
     registry_agents = [a.get_status() for a in AgentRegistry.list_all()]
@@ -1792,8 +1810,14 @@ async def log_ingest(req: Request):
         body = await req.json()
     except Exception:
         body = {}
+    if (
+        not _simulation_active
+        and body.get("category") == "network_capture"
+        and body.get("event") == "llm_api_packet"
+    ):
+        return {"status": "dropped", "reason": "simulation_inactive"}
     record = {
-        "timestamp": body.get("timestamp", datetime.now().isoformat(timespec="milliseconds")),
+        "timestamp": body.get("timestamp", ""),
         "level": body.get("level", "INFO"),
         "source": body.get("source", "external"),
         "component": body.get("component", "unknown"),
