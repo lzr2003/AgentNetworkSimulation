@@ -402,79 +402,21 @@ function drawCommandBackground(canvasW, canvasH, now) {
   ctx.fillStyle = glow2;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  const grid = Math.max(32, Math.min(58, canvasW / 24));
-  const drift = REDUCED_MOTION ? 0 : (pulse * 14) % grid;
+  const grid = 48;
   ctx.save();
   ctx.lineWidth = 0.7;
   ctx.strokeStyle = 'rgba(95,187,255,0.105)';
   ctx.beginPath();
-  for (let x = -grid + drift; x <= canvasW + grid; x += grid) {
+  for (let x = -grid; x <= canvasW + grid; x += grid) {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvasH);
   }
-  for (let y = -grid + drift; y <= canvasH + grid; y += grid) {
+  for (let y = -grid; y <= canvasH + grid; y += grid) {
     ctx.moveTo(0, y);
     ctx.lineTo(canvasW, y);
   }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(56,213,255,0.075)';
-  ctx.lineWidth = 0.45;
-  ctx.beginPath();
-  for (let x = -grid * 2 + drift * 0.5; x <= canvasW + grid * 2; x += grid * 2) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + canvasH * 0.18, canvasH);
-  }
-  ctx.stroke();
-
-  const cx = canvasW / 2;
-  const cy = canvasH / 2;
-  const radius = Math.min(canvasW, canvasH) * 0.42;
-  ctx.strokeStyle = 'rgba(95,187,255,0.16)';
-  ctx.lineWidth = 0.8;
-  for (let i = 1; i <= 4; i++) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * i / 4, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(191,234,255,0.18)';
-  ctx.beginPath();
-  ctx.moveTo(cx - radius, cy);
-  ctx.lineTo(cx + radius, cy);
-  ctx.moveTo(cx, cy - radius);
-  ctx.lineTo(cx, cy + radius);
-  ctx.stroke();
-
-  if (!REDUCED_MOTION) {
-    const sweep = (now * 0.00042) % (Math.PI * 2);
-    const wedge = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-    wedge.addColorStop(0, 'rgba(56,213,255,0.12)');
-    wedge.addColorStop(1, 'rgba(56,213,255,0)');
-    ctx.fillStyle = wedge;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, radius, sweep - 0.18, sweep + 0.02);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  ctx.fillStyle = 'rgba(191,234,255,0.34)';
-  for (let i = 0; i < 52; i++) {
-    const x = (i * 149.5 + (REDUCED_MOTION ? 0 : now * 0.012)) % Math.max(1, canvasW);
-    const y = (i * 67.7 + Math.sin(i * 2.7) * 38 + canvasH * 2) % Math.max(1, canvasH);
-    ctx.globalAlpha = 0.10 + ((i % 7) / 7) * 0.22;
-    ctx.fillRect(x, y, i % 6 === 0 ? 2 : 1, i % 4 === 0 ? 2 : 1);
-  }
   ctx.restore();
-
-  if (!REDUCED_MOTION) {
-    const scanY = (now * 0.07) % (canvasH + 120) - 60;
-    const scan = ctx.createLinearGradient(0, scanY - 42, 0, scanY + 42);
-    scan.addColorStop(0, 'rgba(47,140,255,0)');
-    scan.addColorStop(0.5, 'rgba(56,213,255,0.12)');
-    scan.addColorStop(1, 'rgba(47,140,255,0)');
-    ctx.fillStyle = scan;
-    ctx.fillRect(0, scanY - 42, canvasW, 84);
-  }
 }
 
 // ── Draw permanent relationship lines ──
@@ -803,32 +745,6 @@ function drawAgents(agents, hoveredId, time) {
     ctx.shadowColor = color;
     ctx.shadowBlur = active ? 20 + pulse * 10 : 10;
 
-    // Tactical aura
-    const aura = ctx.createRadialGradient(p.sx, p.sy, 0, p.sx, p.sy, r * 4.2);
-    aura.addColorStop(0, color + (active ? '5f' : '34'));
-    aura.addColorStop(0.42, color + '16');
-    aura.addColorStop(1, color + '00');
-    ctx.fillStyle = aura;
-    ctx.beginPath();
-    ctx.arc(p.sx, p.sy, r * 4.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Target lock rings
-    ctx.shadowBlur = active ? 16 : 7;
-    ctx.lineWidth = hoveredId === a.agent_id ? 2.2 : 1.2;
-    ctx.strokeStyle = color + (hoveredId === a.agent_id ? 'ee' : 'aa');
-    ctx.beginPath();
-    ctx.arc(p.sx, p.sy, r + 4 + pulse * 2, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.setLineDash([5, 4]);
-    ctx.lineWidth = 0.8;
-    ctx.strokeStyle = color + '88';
-    ctx.beginPath();
-    ctx.arc(p.sx, p.sy, r + 9, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
     if (hoveredId === a.agent_id) {
       const lock = r + 15;
       const notch = 7;
@@ -855,21 +771,21 @@ function drawAgents(agents, hoveredId, time) {
     ctx.lineWidth = 0.8;
     ctx.stroke();
 
-    // Active sweep arc
-    if (active) {
-      const spinAngle = REDUCED_MOTION ? 0 : (now / 480) % (Math.PI * 2);
+    // Active sweep arc (only when thinking)
+    if (a.status === 'thinking') {
+      const spinAngle = REDUCED_MOTION ? 0 : (now / 220) % (Math.PI * 2);
+      ctx.setLineDash([4, 6]);
       ctx.beginPath();
-      ctx.arc(p.sx, p.sy, r + 13, spinAngle, spinAngle + Math.PI * 1.35);
+      ctx.arc(p.sx, p.sy, r + 3, spinAngle, spinAngle + Math.PI * 1.35);
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.setLineDash([]);
     }
     ctx.restore();
 
     // Label
     ctx.save();
-    ctx.shadowColor = 'rgba(56,213,255,0.72)';
-    ctx.shadowBlur = 8;
     ctx.fillStyle = '#EAF7FF';
     const labelSize = Math.max(9, Math.min(14, canvasW / 60));
     ctx.font = labelSize + 'px Inter, IBM Plex Sans, system-ui, sans-serif';

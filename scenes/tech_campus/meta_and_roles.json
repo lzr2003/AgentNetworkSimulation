@@ -2,8 +2,8 @@
   "scenario_metadata": {
     "title": "华为范式科技园区仿真",
     "global_rules": "仿真模拟华为科技园区内部跨部门协作与外部资源调用，包括东西向内部流量和南北向外部API调用。所有节点遵守园区网络策略，外部API调用需通过API网关限流。仿真时限为10轮，僵局检测为3轮。",
-    "max_rounds": 10,
-    "stalemate_rounds": 3
+    "max_rounds": 30,
+    "stalemate_rounds": 5
   },
   "roles": {
     "DEV_FE": {
