@@ -61,6 +61,100 @@ GET /api/scenes/state
 - 轮询间隔建议 `500ms` 到 `1000ms`。
 - 若 `custom` 为 `null`，面板应降级到只展示 `agents/round/running`。
 
+#### agents[] 对象结构
+
+```json
+{
+  "agent_id": "dev_fe",
+  "name": "前端开发工程师",
+  "role": "generic",
+  "url": "http://ag-o1:8000",
+  "container_id": "docker-dev_fe",
+  "status": "idle",
+  "skills": ["submit_code"],
+  "tags": ["INTERNAL_COLLABORATION"],
+  "capability_scores": {},
+  "pending_tasks": 0,
+  "pending_task_descs": ["submit_code"],
+  "extra_meta": {
+    "identity": "消费者BG研发部前端开发",
+    "core_goal": "在10轮内完成3个前端模块的代码提交并通过CI流水线",
+    "hidden_secret": "",
+    "action_space": ["submit_code"],
+    "initial_assets": {},
+    "interaction_paradigm": "INTERNAL_COLLABORATION"
+  },
+  "completed_tasks": 0,
+  "created_at": "2026-06-16T10:00:00",
+  "x": 0.0,
+  "y": 0.0
+}
+```
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| `agent_id` | string | Agent 唯一标识 |
+| `name` | string | 中文名称 |
+| `status` | string | 状态：`idle` / `thinking` / `acting` / `error` |
+| `skills` | string[] | 可用技能列表 |
+| `pending_task_descs` | string[] | 待执行任务描述 |
+| `completed_tasks` | int | 已完成任务数（注：当前由 skills 模块 agent_progress 统计，此字段可能为 0） |
+| `x` / `y` | float | Agent 世界坐标 |
+| `extra_meta.core_goal` | string | Agent 核心目标 |
+
+#### custom 对象结构（由 skills.py get_panel_state() 返回）
+
+```json
+{
+  "agent_progress": {
+    "DEV_FE": {"done": 0, "goal": 3},
+    "DEV_BE": {"done": 0, "goal": 2},
+    "DEV_AI": {"done": 1, "goal": 1}
+  },
+  "traffic": {
+    "EAST_WEST":   {"count": 14, "total_kb": 68},
+    "NORTH_SOUTH": {"count": 24, "total_kb": 4795},
+    "INTERNAL":    {"count": 40, "total_kb": 6019922}
+  },
+  "task_stats": {
+    "git_commits": 11,
+    "model_submissions": 5,
+    "design_submissions": 5,
+    "documents": 0,
+    "reviews": 1,
+    "test_reports": 2,
+    "external_api_calls": 12,
+    "test_pass_rate": 100.0
+  },
+  "ci_status": {
+    "total": 14,
+    "running": 0,
+    "success": 8,
+    "failed": 6
+  },
+  "recent_events": [
+    {
+      "round": 10,
+      "type": "CODE_SUBMITTED",
+      "source": "dev_fw",
+      "target": "REPO_ADMIN",
+      "action": "push",
+      "detail": "commit_5_12345 (4 files) | CI: success"
+    }
+  ]
+}
+```
+
+| custom 字段 | 类型 | 含义 |
+|------------|------|------|
+| `agent_progress` | object | 每个 Agent 的完成数/目标数（key 为 UPPERCASE agent_id） |
+| `traffic.EAST_WEST` | object | 东西向流量（内部协作），count + total_kb |
+| `traffic.NORTH_SOUTH` | object | 南北向流量（外部 API），count + total_kb |
+| `traffic.INTERNAL` | object | 内部流量（CI/CD/仓库），count + total_kb |
+| `task_stats` | object | 各类任务的执行次数统计 |
+| `ci_status` | object | CI/CD 流水线状态汇总 |
+| `recent_events` | array | 最近 20 条业务事件 |
+
 ### 3. 静态剧本配置
 
 ```http
