@@ -77,10 +77,37 @@ def log_llm_call(*,
                  component: str = "unknown",
                  actor_id: str = "",
                  actor_name: str = "",
+                 usage: Optional[Dict[str, Any]] = None,
                  error: str = ""):
     """记录一次外部 LLM HTTP/SDK 调用的元数据"""
     if not llm_api_enabled():
         return
+
+    usage = usage or {}
+    prompt_cache_hit = usage.get("prompt_cache_hit_tokens")
+    prompt_cache_miss = usage.get("prompt_cache_miss_tokens")
+    cache_hit_ratio = None
+    if isinstance(prompt_cache_hit, (int, float)) and isinstance(prompt_cache_miss, (int, float)):
+        cache_total = prompt_cache_hit + prompt_cache_miss
+        if cache_total > 0:
+            cache_hit_ratio = round(prompt_cache_hit / cache_total, 4)
+
+    payload = {
+        "prompt_chars": prompt_chars,
+        "messages_count": messages_count,
+        "max_tokens": max_tokens,
+        "response_chars": response_chars,
+        "error_type": error[:200] if error else "",
+        "body_logged": False,
+        "estimated": True,
+    }
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens",
+                "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
+        if usage.get(key) is not None:
+            payload[key] = usage[key]
+            payload["estimated"] = False
+    if cache_hit_ratio is not None:
+        payload["cache_hit_ratio"] = cache_hit_ratio
 
     record = {
         "timestamp": _now_iso(),
@@ -99,15 +126,7 @@ def log_llm_call(*,
         },
         "action": {"name": method, "status": f"error:{error}" if error else status},
         "message": f"LLM {method} {provider}/{model} → {status} {latency_ms:.0f}ms",
-        "payload": {
-            "prompt_chars": prompt_chars,
-            "messages_count": messages_count,
-            "max_tokens": max_tokens,
-            "response_chars": response_chars,
-            "error_type": error[:200] if error else "",
-            "body_logged": False,
-            "estimated": True,
-        },
+        "payload": payload,
         "network": {
             "direction": "outbound",
             "latency_ms": round(latency_ms, 1),
@@ -198,7 +217,8 @@ class LLMCallTracker:
             )
         return False  # 不吞异常
 
-    def ok(self, response_chars: int = 0, status: str = "200"):
+    def ok(self, response_chars: int = 0, status: str = "200",
+           usage: Optional[Dict[str, Any]] = None):
         latency_ms = (time.time() - self.start) * 1000
         log_llm_call(
             provider=self.provider, model=self.model,
@@ -208,4 +228,5 @@ class LLMCallTracker:
             max_tokens=self.max_tokens, messages_count=self.messages_count,
             component=self.component,
             actor_id=self.actor_id, actor_name=self.actor_name,
+            usage=usage,
         )

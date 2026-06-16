@@ -35,7 +35,7 @@ function normalizeLogRecord(record, origin) {
   // 分类映射
   if (cat === 'frontend' || src === 'frontend' || origin === 'frontend') {
     result.field = 'frontend';
-  } else if (cat === 'llm_api') {
+  } else if (cat === 'llm_api' || evt === 'llm_api_call' || evt === 'llm_cli_call') {
     result.field = 'llm_api';
   } else if (cat === 'network_capture') {
     result.field = 'network_capture';
@@ -75,7 +75,20 @@ function normalizeLogRecord(record, origin) {
     const pl = record.payload || {};
     const net = record.network || {};
     result.eventText = 'LLM ' + (tgt.provider || '') + '/' + (tgt.model || '') + ' → ' + (record.action?.status || '');
-    result.detailText = (net.latency_ms ? net.latency_ms + 'ms ' : '') + (pl.prompt_chars ? pl.prompt_chars + '→' + pl.response_chars + 'ch' : '');
+    const bits = [];
+    if (net.latency_ms) bits.push(net.latency_ms + 'ms');
+    if (pl.prompt_cache_hit_tokens !== undefined || pl.prompt_cache_miss_tokens !== undefined) {
+      const hit = pl.prompt_cache_hit_tokens ?? 0;
+      const miss = pl.prompt_cache_miss_tokens ?? 0;
+      const ratio = pl.cache_hit_ratio !== undefined ? ' ' + Math.round(pl.cache_hit_ratio * 100) + '%' : '';
+      bits.push('cache ' + hit + '/' + miss + ratio);
+    }
+    if (pl.prompt_tokens !== undefined || pl.completion_tokens !== undefined) {
+      bits.push('tok ' + (pl.prompt_tokens ?? '?') + '→' + (pl.completion_tokens ?? '?'));
+    } else if (pl.prompt_chars) {
+      bits.push(pl.prompt_chars + '→' + pl.response_chars + 'ch');
+    }
+    result.detailText = bits.join(' ');
   } else if (result.field === 'network_capture') {
     const tgt = record.target || {};
     const net = record.network || {};

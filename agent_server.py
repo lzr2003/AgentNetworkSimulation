@@ -97,6 +97,7 @@ if BACKEND == "brain":
         _brain_config["api_key"] = os.environ["LLM_API_KEY"]
         _brain_config["model"] = os.environ.get("LLM_MODEL", "")
         _brain_config["provider"] = os.environ.get("LLM_PROVIDER", "auto")
+        _brain_config["api_base"] = os.environ.get("LLM_API_BASE", "")
 
     _goals = []
     if AGENT_CORE_GOAL: _goals.append(f"核心目标: {AGENT_CORE_GOAL}")
@@ -177,6 +178,8 @@ if traffic_enabled():
 turn = 0
 last_action: Dict[str, Any] = {}
 inbox: list = []                  # openclaw / claude-code 用的独立收件箱
+_openclaw_histories: Dict[str, List[Dict[str, Any]]] = {}
+_openclaw_history_turns = max(0, int(os.environ.get("AGENT_MESSAGE_HISTORY_TURNS", "8")))
 _current_effective_id = AGENT_ID
 _current_effective_name = AGENT_NAME
 _allowed_targets: set = set()
@@ -361,13 +364,12 @@ def _build_identity_block(ctx: dict, skills_list: list = None) -> str:
 def _build_user_message(inbox_msgs: list, ctx: dict = None) -> str:
     """OpenCLAW 用户消息"""
     ctx = ctx or {}
-    known = ctx.get("agents", ctx.get("known_agents", []))
     direct, broadcast, system = _partition_inbox_messages(inbox_msgs)
     inbox_text = _format_inbox_sections(direct, broadcast, system)
-    return f"""## 当前回合: {turn}
-
-## 已知其它 Agent（发消息时 target 必须用 agent_id）
-{_format_known_agents(known)}
+    return f"""## 当前动态状态
+当前回合: {ctx.get("round", turn)}
+总回合: {ctx.get("total_rounds", "未知")}
+场景: {ctx.get("scene", "未知")}
 
 {inbox_text}
 
@@ -416,15 +418,99 @@ def _build_claude_prompt(inbox_msgs: list, ctx: dict = None) -> str:
 # 后端调用
 # ═══════════════════════════════════════════════
 
+def _is_deepseek_openclaw() -> bool:
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "") or os.environ.get("LLM_API_BASE", "")
+    return "deepseek" in base_url.lower()
+
+
+def _openclaw_openai_base_url() -> str:
+    return os.environ.get("LLM_API_BASE") or "https://api.deepseek.com/v1"
+
+
+def _messages_chars(messages: list) -> int:
+    total = 0
+    for msg in messages:
+        total += len(str(msg.get("content", "") or ""))
+        for tool_call in msg.get("tool_calls", []) or []:
+            total += len(json.dumps(tool_call, ensure_ascii=False))
+    return total
+
+
+def _openclaw_tools_for_openai() -> list:
+    tools = []
+    for tool in _TOOLS:
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+            },
+        })
+    return tools
+
+
+def _openclaw_history(agent_id: str) -> list:
+    return _openclaw_histories.setdefault(agent_id, [])
+
+
+def _append_openclaw_history(agent_id: str, user_message: str, assistant_message: dict):
+    history = _openclaw_history(agent_id)
+    history.append({"role": "user", "content": user_message})
+    history.append(assistant_message)
+    keep = _openclaw_history_turns * 2
+    if keep <= 0:
+        _openclaw_histories[agent_id] = []
+    elif len(history) > keep:
+        _openclaw_histories[agent_id] = history[-keep:]
+
+
+def _build_openclaw_messages(system_prompt: str, user_message: str, agent_id: str) -> list:
+    return [
+        {"role": "system", "content": system_prompt},
+        *_openclaw_history(agent_id),
+        {"role": "user", "content": user_message},
+    ]
+
+
+def _parse_openclaw_tool_call(name: str, args: dict) -> dict:
+    if name == "send_message":
+        return {
+            "action": "send_message",
+            "target": args.get("target", ""),
+            "content": args.get("content", ""),
+            "reasoning": args.get("reasoning", ""),
+        }
+    if name == "execute_skill":
+        return {
+            "action": "execute_skill",
+            "target": args.get("skill_name", ""),
+            "content": args.get("params", {}),
+            "reasoning": args.get("reasoning", ""),
+        }
+    if name == "wait":
+        return {
+            "action": "wait",
+            "target": "",
+            "content": args.get("reason", "waiting"),
+            "reasoning": args.get("reason", "waiting"),
+        }
+    return {"action": name.replace("_", ""), "target": "", "content": str(args), "reasoning": str(args)}
+
+
 def _build_system_prompt(ctx: dict = None) -> str:
     """OpenCLAW system prompt"""
     ctx = ctx or {}
     background_rules = ctx.get("background_rules") or AGENT_SYSTEM_PROMPT
+    known = ctx.get("agents", ctx.get("known_agents", []))
     system = background_rules or "你是一个仿真场景中的角色，根据你的身份和目标做出合理决策。"
     identity_block = _build_identity_block(ctx, ctx.get("skills_list", []))
     return f"""{system}
 
 {identity_block}
+## 已知其它 Agent（发消息时 target 必须用 agent_id）
+{_format_known_agents(known)}
+
 行为准则：
 - 必须立即采取具体行动，绝对不能wait！
 - 有直接消息时直接用 execute_skill 执行任务，结果会自动回复发件人
@@ -434,12 +520,64 @@ def _build_system_prompt(ctx: dict = None) -> str:
 
 
 def _call_openclaw(system_prompt: str, user_message: str) -> dict:
-    import anthropic
     from agent_network.llm_traffic import LLMCallTracker
+    from urllib.parse import urlparse
 
-    # 从 base_url 推断 provider
+    if _is_deepseek_openclaw():
+        import httpx
+
+        api_base = _openclaw_openai_base_url()
+        url = f"{api_base.rstrip('/')}/chat/completions"
+        host = urlparse(url).netloc
+        messages = _build_openclaw_messages(system_prompt, user_message, _current_effective_id)
+        with LLMCallTracker(provider="deepseek", model=MODEL, method="POST",
+                            path="/v1/chat/completions", host=host,
+                            component=_current_effective_id, actor_id=_current_effective_id,
+                            actor_name=_current_effective_name,
+                            prompt_chars=_messages_chars(messages),
+                            messages_count=len(messages), max_tokens=1024) as tracker:
+            resp = httpx.post(url, headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "Content-Type": "application/json",
+            }, json={
+                "model": MODEL,
+                "messages": messages,
+                "tools": _openclaw_tools_for_openai(),
+                "tool_choice": "auto",
+                "max_tokens": 1024,
+                "temperature": 0.7,
+            }, timeout=60.0)
+            resp.raise_for_status()
+            data = resp.json()
+            message = data["choices"][0]["message"]
+            tracker.ok(response_chars=len(json.dumps(message, ensure_ascii=False)),
+                       status=str(resp.status_code), usage=data.get("usage", {}))
+
+        tool_calls = message.get("tool_calls") or []
+        if tool_calls:
+            fn = tool_calls[0].get("function", {})
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            action = _parse_openclaw_tool_call(fn.get("name", ""), args)
+            _append_openclaw_history(_current_effective_id, user_message, {
+                "role": "assistant",
+                "content": json.dumps(action, ensure_ascii=False),
+            })
+            return action
+        text = message.get("content") or ""
+        _append_openclaw_history(_current_effective_id, user_message, {
+            "role": "assistant",
+            "content": text,
+        })
+        parsed = _parse_claude_response(text)
+        return parsed if parsed.get("action") != "wait" else {"action": "wait", "target": "", "content": "", "reasoning": text}
+
+    import anthropic
+
     base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
-    provider = "deepseek" if "deepseek" in base_url else "anthropic"
+    provider = "anthropic"
     host = base_url.replace("https://", "").replace("http://", "").rstrip("/") if base_url else "api.anthropic.com"
 
     prompt_chars = len(system_prompt or "") + len(user_message or "")
@@ -860,10 +998,12 @@ async def capture_stop():
 @app.post("/reset")
 async def reset_state():
     global turn, last_action, _allowed_targets, _current_effective_id, _current_effective_name
+    global _openclaw_histories
     stop_capture()
     turn = 0
     last_action = {}
     _allowed_targets = set()
+    _openclaw_histories = {}
     _current_effective_id = AGENT_ID
     _current_effective_name = AGENT_NAME
     os.environ.pop("EFFECTIVE_AGENT_ID", None)
@@ -881,7 +1021,8 @@ async def reset_state():
         if hasattr(_agent, '_last_injected_id'):
             del _agent._last_injected_id
         if hasattr(_agent, 'brain') and _agent.brain:
-            _agent.brain.memory = []
+            if hasattr(_agent.brain, 'message_history'):
+                _agent.brain.message_history = []
             _agent.brain.turn = 0
     else:
         inbox.clear()
