@@ -1,0 +1,80 @@
+{
+  "scenario_metadata": {
+    "title": "园区WiFi AP部署规划仿真",
+    "global_rules": "园区为1000m×400m矩形区域，内有5个固定干扰源（坐标随机，干扰半径50-150m）。AP部署需覆盖≥95%区域，成本不超过预算。仿真最多10轮，僵局检测4轮。",
+    "max_rounds": 10,
+    "stalemate_rounds": 4
+  },
+  "roles": {
+    "PLANNER": {
+      "name": "AP规划师",
+      "model_backbone": "openclaw",
+      "identity": "负责统筹AP部署规划，调用AI优化助手获取最优位置建议，协调各方意见。",
+      "core_goal": "在10轮内输出覆盖≥95%、成本≤预算的AP部署方案",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "RF_ENGINEER": {
+      "name": "射频工程师",
+      "model_backbone": "claudecode",
+      "identity": "分析干扰源影响范围，进行信号覆盖仿真，提交覆盖报告。",
+      "core_goal": "每轮提供覆盖热力图，识别信号盲区，确保覆盖≥95%",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "COST_ANALYST": {
+      "name": "成本分析师",
+      "model_backbone": "claudecode",
+      "identity": "评估不同AP方案的预算和性价比，控制成本。",
+      "core_goal": "方案总成本不超过预算的100%，且性价比最高",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "SURVEYOR": {
+      "name": "现场勘测员",
+      "model_backbone": "openclaw",
+      "identity": "实地检查AP部署位置的物理可行性（电源、安装条件等）。",
+      "core_goal": "确保所有AP候选位置至少80%物理可行",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "ARCHITECT": {
+      "name": "网络架构师",
+      "model_backbone": "openclaw",
+      "identity": "验证网络拓扑的合理性和可扩展性。",
+      "core_goal": "确保方案满足网络架构标准，无环路和过度冗余",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "AI_ASSISTANT": {
+      "name": "AI优化助手",
+      "model_backbone": "claudecode",
+      "identity": "外部agent节点，提供路径规划和信号仿真优化算法。",
+      "core_goal": "提供准确的AP位置优化建议，最小化AP数量并最大化覆盖",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "VERIFIER": {
+      "name": "覆盖验证员",
+      "model_backbone": "openclaw",
+      "identity": "使用AI助手仿真信号强度，验证覆盖效果。",
+      "core_goal": "验证最终方案覆盖≥95%",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "DEPLOYER": {
+      "name": "部署管理员",
+      "model_backbone": "openclaw",
+      "identity": "协调AP的物理部署和执行。",
+      "core_goal": "确保部署计划在预算和时间内完成",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    },
+    "QA_ENGINEER": {
+      "name": "质量保证工程师",
+      "model_backbone": "claudecode",
+      "identity": "最终测试验收，确保方案满足所有要求。",
+      "core_goal": "验收通过率100%",
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION"
+    },
+    "DOCUMENTER": {
+      "name": "文档记录员",
+      "model_backbone": "openclaw",
+      "identity": "记录规划过程和最终方案。",
+      "core_goal": "完整记录所有决策和参数",
+      "primary_interaction_paradigm": "INTERNAL_COLLABORATION"
+    }
+  }
+}

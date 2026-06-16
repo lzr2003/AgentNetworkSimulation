@@ -224,6 +224,31 @@
         "preferred_connection_categories": ["software_dev", "hardware_dev", "ai_researcher", "devops_engineer", "product_manager", "tech_writer", "qa_engineer"],
         "connection_affinity": { "software_dev": 0.40, "hardware_dev": 0.10, "ai_researcher": 0.08, "devops_engineer": 0.08, "other": 0.34 }
       }
+    },
+    {
+      "category_id": "ai_assistant",
+      "name": "AI外部助手",
+      "identity": "外部工具/大模型节点，提供代码生成、文档辅助、模型推理、EDA仿真等LLM调用服务",
+      "spawn_count": { "base": 3000, "scale_factor": 1.0 },
+      "model_backbone": { "enabled": true, "llm_ratio": 1.0 },
+      "primary_interaction_paradigm": "EXTERNAL_NEGOTIATION",
+      "skills": ["llm_code_generate", "llm_document_assist", "llm_model_inference", "llm_eda_simulation"],
+      "persona_templates": [
+        { "role": "code_copilot",   "ratio": 0.35, "expertise": "code_generation", "avg_latency_ms": 300 },
+        { "role": "doc_assistant",  "ratio": 0.25, "expertise": "documentation",   "avg_latency_ms": 200 },
+        { "role": "model_runner",   "ratio": 0.25, "expertise": "model_inference", "avg_latency_ms": 500 },
+        { "role": "eda_simulator",  "ratio": 0.15, "expertise": "eda_simulation",  "avg_latency_ms": 3000 }
+      ],
+      "behavior_profile": {
+        "actions_per_10_rounds": { "llm_code_generate": [10, 30], "llm_document_assist": [5, 15], "llm_model_inference": [3, 10], "llm_eda_simulation": [1, 5], "idle": [0, 2] },
+        "traffic_mix": { "NORTH_SOUTH": 0.80, "EAST_WEST": 0.15, "INTERNAL": 0.05 },
+        "avg_payload_kb": { "EAST_WEST": 8, "NORTH_SOUTH": 256, "INTERNAL": 64 }
+      },
+      "topology_constraints": {
+        "max_peers_per_agent": 100,
+        "preferred_connection_categories": ["software_dev", "ai_researcher", "hardware_dev", "architect", "product_manager", "tech_writer", "qa_engineer", "devops_engineer"],
+        "connection_affinity": { "software_dev": 0.25, "ai_researcher": 0.20, "hardware_dev": 0.10, "architect": 0.10, "product_manager": 0.05, "tech_writer": 0.10, "qa_engineer": 0.05, "other": 0.15 }
+      }
     }
   ],
 
@@ -233,8 +258,8 @@
       "topology_type": "MESH",
       "description": "开发团队内部协作平面",
       "generation_rule": "INTRA_CATEGORY_FULL_INTER_CATEGORY_SPARSE",
-      "source_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer", "devops_engineer"],
-      "target_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer", "devops_engineer"],
+      "source_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer", "devops_engineer", "ai_assistant"],
+      "target_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer", "devops_engineer", "ai_assistant"],
       "paradigm": "COLLABORATION",
       "edge_density": { "intra": 0.00005, "inter": 0.00001 },
       "max_total_edges": 20000000,
@@ -246,7 +271,7 @@
       "description": "代码仓库/CI/CD中心：repo_admin和devops为Hub",
       "generation_rule": "STAR_HUB",
       "hub_categories": ["repo_admin", "devops_engineer"],
-      "spoke_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer"],
+      "spoke_categories": ["software_dev", "hardware_dev", "ai_researcher", "architect", "product_manager", "tech_writer", "qa_engineer", "ai_assistant"],
       "paradigm": "COLLABORATION",
       "edge_density": { "hub_to_spoke": 0.002 },
       "max_total_edges": 2000000,
@@ -270,11 +295,23 @@
       "description": "管理层协调平面：产品经理和架构师为Hub",
       "generation_rule": "STAR_HUB",
       "hub_categories": ["product_manager", "architect"],
-      "spoke_categories": ["software_dev", "hardware_dev", "ai_researcher", "tech_writer", "qa_engineer", "devops_engineer", "repo_admin"],
+      "spoke_categories": ["software_dev", "hardware_dev", "ai_researcher", "tech_writer", "qa_engineer", "devops_engineer", "repo_admin", "ai_assistant"],
       "paradigm": "COLLABORATION",
       "edge_density": { "hub_to_spoke": 0.0005 },
       "max_total_edges": 10000000,
       "channel_prefix": "vlan_mgmt"
+    },
+    {
+      "sub_id": "sub_ai_gateway",
+      "topology_type": "STAR",
+      "description": "外部AI网关：ai_assistant作为中心，所有需要LLM/外部工具的节点通过此子网调用",
+      "generation_rule": "STAR_HUB",
+      "hub_categories": ["ai_assistant"],
+      "spoke_categories": ["software_dev", "ai_researcher", "hardware_dev", "architect", "product_manager", "tech_writer", "qa_engineer"],
+      "paradigm": "NEGOTIATION",
+      "edge_density": { "hub_to_spoke": 0.01 },
+      "max_total_edges": 5000000,
+      "channel_prefix": "vlan_ai"
     }
   ],
 
@@ -327,7 +364,8 @@
       { "category_id": "tech_writer",     "subnets": ["sub_dev_collab","sub_repo_ci","sub_mgmt_plane"],               "roles": ["peer","spoke","spoke"] },
       { "category_id": "qa_engineer",     "subnets": ["sub_dev_collab","sub_repo_ci","sub_qa_notify","sub_mgmt_plane"], "roles": ["peer","spoke","source","spoke"] },
       { "category_id": "devops_engineer", "subnets": ["sub_dev_collab","sub_repo_ci","sub_mgmt_plane"],               "roles": ["peer","hub","spoke"] },
-      { "category_id": "repo_admin",      "subnets": ["sub_repo_ci","sub_mgmt_plane"],                               "roles": ["hub","spoke"] }
+      { "category_id": "repo_admin",      "subnets": ["sub_repo_ci","sub_mgmt_plane"],                               "roles": ["hub","spoke"] },
+      { "category_id": "ai_assistant",    "subnets": ["sub_dev_collab","sub_repo_ci","sub_ai_gateway","sub_mgmt_plane"], "roles": ["peer","spoke","hub","spoke"] }
     ]
   },
 

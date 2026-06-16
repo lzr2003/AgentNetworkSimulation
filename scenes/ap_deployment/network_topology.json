@@ -1,0 +1,102 @@
+{
+  "global_topology_type": "HYBRID_MESH",
+  "sub_networks": [
+    {
+      "sub_id": "core_team",
+      "topology_type": "STAR",
+      "description": "核心规划团队，以AP规划师为中心",
+      "nodes": [
+        "PLANNER",
+        "RF_ENGINEER",
+        "COST_ANALYST",
+        "SURVEYOR",
+        "ARCHITECT",
+        "VERIFIER",
+        "DEPLOYER",
+        "QA_ENGINEER",
+        "DOCUMENTER"
+      ],
+      "edges": [
+        {
+          "source": "PLANNER",
+          "target": "RF_ENGINEER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_01"
+        },
+        {
+          "source": "PLANNER",
+          "target": "COST_ANALYST",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_02"
+        },
+        {
+          "source": "PLANNER",
+          "target": "SURVEYOR",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_03"
+        },
+        {
+          "source": "PLANNER",
+          "target": "ARCHITECT",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_04"
+        },
+        {
+          "source": "PLANNER",
+          "target": "VERIFIER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_05"
+        },
+        {
+          "source": "PLANNER",
+          "target": "DEPLOYER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_06"
+        },
+        {
+          "source": "PLANNER",
+          "target": "QA_ENGINEER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_07"
+        },
+        {
+          "source": "PLANNER",
+          "target": "DOCUMENTER",
+          "paradigm": "COLLABORATION",
+          "channel_id": "vlan_core_08"
+        }
+      ]
+    },
+    {
+      "sub_id": "ai_network",
+      "topology_type": "MESH",
+      "description": "AI优化助手与各角色间的调用网络",
+      "nodes": [
+        "AI_ASSISTANT",
+        "PLANNER",
+        "RF_ENGINEER",
+        "VERIFIER"
+      ],
+      "edges": [
+        {
+          "source": "PLANNER",
+          "target": "AI_ASSISTANT",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_ai_01"
+        },
+        {
+          "source": "RF_ENGINEER",
+          "target": "AI_ASSISTANT",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_ai_02"
+        },
+        {
+          "source": "VERIFIER",
+          "target": "AI_ASSISTANT",
+          "paradigm": "NEGOTIATION",
+          "channel_id": "vlan_ai_03"
+        }
+      ]
+    }
+  ]
+}

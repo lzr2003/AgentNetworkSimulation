@@ -1,0 +1,68 @@
+{
+  "container_instances": {
+    "PLANNER": {
+      "skills": [
+        "call_ai_optimizer",
+        "coordinate_team",
+        "integrate_feedback"
+      ]
+    },
+    "RF_ENGINEER": {
+      "skills": [
+        "simulate_coverage",
+        "analyze_interference",
+        "generate_heatmap"
+      ]
+    },
+    "COST_ANALYST": {
+      "skills": [
+        "evaluate_cost",
+        "budget_control",
+        "compare_plans"
+      ]
+    },
+    "SURVEYOR": {
+      "skills": [
+        "check_feasibility",
+        "report_obstacles"
+      ]
+    },
+    "ARCHITECT": {
+      "skills": [
+        "validate_topology",
+        "check_redundancy"
+      ]
+    },
+    "AI_ASSISTANT": {
+      "skills": [
+        "optimize_ap_positions",
+        "simulate_signal",
+        "suggest_improvements"
+      ]
+    },
+    "VERIFIER": {
+      "skills": [
+        "verify_coverage",
+        "run_simulation"
+      ]
+    },
+    "DEPLOYER": {
+      "skills": [
+        "plan_deployment",
+        "schedule_tasks"
+      ]
+    },
+    "QA_ENGINEER": {
+      "skills": [
+        "final_inspection",
+        "acceptance_test"
+      ]
+    },
+    "DOCUMENTER": {
+      "skills": [
+        "record_decision",
+        "archive_solution"
+      ]
+    }
+  }
+}

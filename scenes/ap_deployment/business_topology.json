@@ -1,0 +1,25 @@
+{
+  "links": [
+    {
+      "source": "PLANNER",
+      "target": "AI_ASSISTANT",
+      "status": "NEGOTIATING",
+      "value": 5000,
+      "desc": "规划师与AI助手初步谈判调用服务"
+    },
+    {
+      "source": "RF_ENGINEER",
+      "target": "AI_ASSISTANT",
+      "status": "NEGOTIATING",
+      "value": 3000,
+      "desc": "射频工程师与AI助手谈判仿真服务"
+    },
+    {
+      "source": "VERIFIER",
+      "target": "AI_ASSISTANT",
+      "status": "NEGOTIATING",
+      "value": 2000,
+      "desc": "覆盖验证员与AI助手谈判验证服务"
+    }
+  ]
+}

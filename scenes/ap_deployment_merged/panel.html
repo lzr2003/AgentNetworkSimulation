@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AP Deployment — 园区部署态势</title>
+<style>
+:root{--bg:#0c1119;--panel-bg:rgba(14,20,32,0.85);--muted:#8892a4;--text:#d0d7e4;--white:#f0f4fa;--cyan:#5b9bd5;--green:#6bae85;--red:#c47b8b;--yellow:#d4a853;--purple:#9b8ec4}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font:14px 'Inter',system-ui,sans-serif;color:var(--text)}
+canvas{display:block}
+#tooltip{position:absolute;pointer-events:none;background:rgba(12,17,25,0.96);border:1px solid rgba(255,255,255,0.12);border-radius:5px;padding:7px 11px;font:11px 'JetBrains Mono',monospace;color:var(--white);white-space:nowrap;display:none;z-index:10;box-shadow:0 2px 16px rgba(0,0,0,0.5)}
+#hud{position:absolute;top:8px;left:0;right:0;display:flex;justify-content:space-between;padding:0 16px;font:12px 'JetBrains Mono',monospace;color:var(--muted);pointer-events:none;z-index:5}
+#hud .t{color:var(--white);font-weight:600}
+#stats{position:absolute;bottom:8px;left:8px;right:8px;display:flex;gap:12px;pointer-events:none;z-index:5;align-items:flex-end;flex-wrap:wrap}
+#stats .box{background:var(--panel-bg);border:1px solid rgba(255,255,255,0.06);border-radius:5px;padding:6px 10px;font:10px 'JetBrains Mono',monospace;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+#stats .v{color:var(--white);font-weight:600}
+#stats .g{color:var(--green)}#stats .r{color:var(--red)}#stats .y{color:var(--yellow)}
+</style></head>
+<body>
+<div id="hud"><span class="t">AP DEPLOYMENT · 园区规划态势</span><span id="roundLabel">R0/-</span></div>
+<div id="stats">
+  <div class="box">
+    <span>覆盖 <span class="v" id="sCov">--</span></span>
+    <span>目标 <span class="v">95%</span></span>
+    <span>AP数 <span class="v" id="sAP">0</span></span>
+    <span>成本 <span class="v" id="sCost">0</span></span>
+    <span>预算 <span class="v">50K</span></span>
+    <span>AI调用 <span class="v" id="sAI">0</span></span>
+    <span>可行性 <span class="v" id="sFeas">--</span></span>
+    <span>状态 <span class="v" id="sStatus">--</span></span>
+  </div>
+</div>
+<div id="tooltip"></div>
+<canvas id="c"></canvas>
+
+<script>
+const API_URL = window.location.pathname.replace('/panel','/state') || '/api/scenes/ap_deployment/state';
+const CAMPUS = {w:1000,h:400};
+const INTERFERENCE = [
+  {id:'INT_01',x:150,y:80,radius:80,desc:'变电站电磁干扰'},
+  {id:'INT_02',x:420,y:280,radius:120,desc:'大型电机设备'},
+  {id:'INT_03',x:680,y:120,radius:60,desc:'微波通信塔'},
+  {id:'INT_04',x:850,y:320,radius:100,desc:'高压输电线'},
+  {id:'INT_05',x:300,y:350,radius:150,desc:'工业焊接车间'},
+];
+
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const tip=document.getElementById('tooltip');
+let data=null;
+
+function layout(){
+  canvas.width=window.innerWidth*devicePixelRatio;canvas.height=window.innerHeight*devicePixelRatio;
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(devicePixelRatio,devicePixelRatio);
+}
+
+function campusToScreen(cx,cy){
+  const pad={t:40,b:60,l:30,r:30};
+  const availW=window.innerWidth-pad.l-pad.r,availH=window.innerHeight-pad.t-pad.b;
+  const scale=Math.min(availW/CAMPUS.w,availH/CAMPUS.h);
+  const offsetX=pad.l+(availW-CAMPUS.w*scale)/2,offsetY=pad.t+(availH-CAMPUS.h*scale)/2;
+  return {x:offsetX+cx*scale,y:offsetY+cy*scale,s:scale};
+}
+
+function draw(){
+  const w=window.innerWidth,h=window.innerHeight;
+  ctx.clearRect(0,0,w,h);
+  const {s:scale, x:ox, y:oy}=campusToScreen(0,0);
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
+  for(let gx=0;gx<=CAMPUS.w;gx+=100){
+    const p=campusToScreen(gx,0);ctx.beginPath();ctx.moveTo(p.x,oy);ctx.lineTo(p.x,oy+CAMPUS.h*scale);ctx.stroke();
+  }
+  for(let gy=0;gy<=CAMPUS.h;gy+=100){
+    const p=campusToScreen(0,gy);ctx.beginPath();ctx.moveTo(ox,p.y);ctx.lineTo(ox+CAMPUS.w*scale,p.y);ctx.stroke();
+  }
+
+  // Campus border
+  const tr=campusToScreen(CAMPUS.w,CAMPUS.h);
+  ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=1.5;
+  ctx.strokeRect(ox,oy,CAMPUS.w*scale,CAMPUS.h*scale);
+
+  // Interference zones
+  INTERFERENCE.forEach(src=>{
+    const p=campusToScreen(src.x,src.y);
+    ctx.beginPath();ctx.arc(p.x,p.y,src.radius*scale,0,Math.PI*2);
+    ctx.fillStyle='rgba(196,123,139,0.18)';ctx.fill();
+    ctx.strokeStyle='rgba(196,123,139,0.5)';ctx.lineWidth=1;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#c47b8b';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(src.id,p.x,p.y-6);
+    ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='8px monospace';ctx.fillText(src.desc,p.x,p.y+src.radius*scale+10);
+  });
+
+  // AP placements
+  const aps=data?.ap_placements||[];
+  aps.forEach((ap,i)=>{
+    const p=campusToScreen(ap.x,ap.y);
+    // Coverage circle
+    const cr=(ap.radius||60)*scale;
+    ctx.beginPath();ctx.arc(p.x,p.y,cr,0,Math.PI*2);
+    ctx.fillStyle='rgba(91,155,213,0.06)';ctx.fill();
+    ctx.strokeStyle='rgba(91,155,213,0.25)';ctx.lineWidth=0.5;ctx.stroke();
+    // AP dot
+    ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);
+    ctx.fillStyle='#5b9bd5';ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;ctx.stroke();
+    // Label
+    ctx.fillStyle='#5b9bd5';ctx.font='8px monospace';ctx.textAlign='center';
+    ctx.fillText(ap.id||('AP_'+(i+1)),p.x,p.y-9);
+  });
+
+  // Blind spots (from coverage report)
+  const spots=data?.latest_coverage?.blind_spots_sample||[];
+  spots.forEach(s=>{
+    const p=campusToScreen(s.x,s.y);
+    ctx.fillStyle='rgba(196,123,139,0.5)';ctx.beginPath();ctx.arc(p.x,p.y,2,0,Math.PI*2);ctx.fill();
+  });
+
+  // Coverage percentage overlay
+  const cov=data?.latest_coverage?.coverage_pct;
+  if(cov!=null){
+    ctx.fillStyle='rgba(12,17,25,0.8)';ctx.fillRect(ox+6,oy+4,180,20);
+    ctx.fillStyle=cov>=95?'#6bae85':'#d4a853';ctx.font='bold 11px monospace';ctx.textAlign='left';
+    ctx.fillText(`覆盖: ${cov}% ${cov>=95?'✓':'⚠'}`,ox+10,oy+17);
+  }
+
+  // Scale bar
+  const sbY=oy+CAMPUS.h*scale+18,sbX=ox;
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(sbX,sbY);ctx.lineTo(sbX+100*scale,sbY);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='8px monospace';ctx.textAlign='center';
+  ctx.fillText('100m',sbX+50*scale,sbY-4);
+
+  // Event ticker top-right
+  const ev=(data?.event_log||[]).slice(-5);
+  ev.forEach((e,i)=>{
+    const y=40+i*16,x=w-260;
+    ctx.fillStyle='rgba(12,17,25,0.75)';ctx.fillRect(x,y-10,254,15);
+    ctx.fillStyle='#8892a4';ctx.font='9px monospace';ctx.fillText(`R${e.round} ${e.action} ${e.detail}`,x+4,y);
+  });
+}
+
+function updateStats(){
+  const d=data;if(!d)return;
+  const cov=d.latest_coverage;
+  document.getElementById('sCov').textContent=cov?cov.coverage_pct+'%':'--';
+  document.getElementById('sAP').textContent=(d.ap_placements||[]).length;
+  const cost=d.latest_cost;
+  document.getElementById('sCost').textContent=cost?'¥'+(cost.total_cost/1000).toFixed(1)+'K':'0';
+  document.getElementById('sAI').textContent=(d.ai_call_log||[]).length;
+  const feas=d.feasibility_checks||[];
+  document.getElementById('sFeas').textContent=feas.length?Math.round(feas.filter(f=>f.feasible).length/feas.length*100)+'%':'--';
+  const rl=d.event_log||[];
+  document.getElementById('sStatus').textContent=cov&&cov.coverage_pct>=95?'✅达标':'⏳进行中';
+  document.getElementById('roundLabel').textContent='R'+(rl.length>0?rl[rl.length-1].round:'0');
+}
+
+async function poll(){
+  try{
+    const r=await fetch(API_URL);if(!r.ok)throw new Error('HTTP '+r.status);
+    data=await r.json();
+    if(data.error)return;
+  }catch(e){
+    // Use local state from skills.py if loaded
+    if(!data){console.log('Waiting for API...');return;}
+  }
+  layout();draw();updateStats();
+}
+
+// Simulate 3 rounds of AP planning for local preview
+if(window.location.protocol==='file:'){
+  data={
+    campus:{width:1000,height:400},
+    interference:INTERFERENCE,
+    ap_placements:[
+      {id:'AP_1',x:130,y:70,radius:60},{id:'AP_2',x:300,y:130,radius:60},{id:'AP_3',x:500,y:80,radius:60},
+      {id:'AP_4',x:700,y:150,radius:60},{id:'AP_5',x:850,y:80,radius:60},{id:'AP_6',x:200,y:260,radius:60},
+      {id:'AP_7',x:550,y:300,radius:60},{id:'AP_8',x:800,y:340,radius:60},
+    ],
+    latest_coverage:{coverage_pct:94.2,ap_count:8,blind_spot_count:12,blind_spots_sample:[
+      {x:680,y:120},{x:690,y:125},{x:420,y:280},{x:425,y:285},{x:430,y:275},{x:300,y:350},{x:310,y:355},{x:150,y:80}
+    ]},
+    latest_cost:{ap_count:8,unit_cost:3500,extra_cost:5000,total_cost:33000,budget_remaining:17000,within_budget:true},
+    ai_call_log:[{round:1,caller:'PLANNER',latency_ms:450,tokens:1200},{round:2,caller:'PLANNER',latency_ms:380,tokens:900},{round:2,caller:'RF_ENGINEER',latency_ms:520,tokens:1500},{round:3,caller:'VERIFIER',latency_ms:310,tokens:600}],
+    feasibility_checks:[{ap_id:'AP_1',feasible:true},{ap_id:'AP_2',feasible:true},{ap_id:'AP_3',feasible:false,issue:'电源不可达'},{ap_id:'AP_4',feasible:true},{ap_id:'AP_5',feasible:true},{ap_id:'AP_6',feasible:true},{ap_id:'AP_7',feasible:true},{ap_id:'AP_8',feasible:true}],
+    event_log:[{round:1,action:'optimize_ap_positions',detail:'8 APs, 450ms, 1200 tokens'},{round:1,action:'simulate_coverage',detail:'87.3%'},{round:2,action:'optimize_ap_positions',detail:'8 APs, 380ms, 900 tokens'},{round:2,action:'evaluate_cost',detail:'8 APs × 3500 + 5000 = 33000'},{round:3,action:'verify_coverage',detail:'94.2% FAIL (target:95%)'},{round:3,action:'optimize_ap_positions',detail:'adjusting AP_3, AP_7 positions...'}],
+    budget:{total:50000,unit_ap_cost:3500,target_coverage_pct:95},
+  };
+}
+
+layout();draw();updateStats();
+setInterval(poll,2000);
+window.addEventListener('resize',()=>{layout();draw();});
+</script>
+</body></html>
