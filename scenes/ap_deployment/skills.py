@@ -181,9 +181,26 @@ def plan_next_ap(**kwargs):
             too_close = any(math.sqrt((best_x-ap["x"])**2+(best_y-ap["y"])**2)<MIN_AP_SPACING for ap in existing)
             candidates.append({"x": round(best_x,1), "y": round(best_y,1), "safe_dist": round(best_dist,1), "too_close": too_close})
 
-    # 选最优候选
-    candidates.sort(key=lambda c: (-c["safe_dist"], c["too_close"]))
-    best = candidates[0]
+    # 加权选候选：safe_dist(40%) + 覆盖分散度(60%)，避免全部堆在右上角
+    if existing:
+        for c in candidates:
+            nearest_ap = min(math.sqrt((c["x"]-ap["x"])**2+(c["y"]-ap["y"])**2) for ap in existing)
+            c["gap_dist"] = min(nearest_ap, 300)  # cap 300m 防止极端值
+        max_safe = max(c["safe_dist"] for c in candidates) or 1
+        max_gap = max(c["gap_dist"] for c in candidates) or 1
+        for c in candidates:
+            c["score"] = (c["safe_dist"]/max_safe)*0.4 + (c["gap_dist"]/max_gap)*0.6
+    else:
+        for c in candidates:
+            c["gap_dist"] = 0
+            c["score"] = c["safe_dist"]
+
+    candidates.sort(key=lambda c: (-c["score"], c["too_close"]))
+    # 从前3名中随机选，避免确定性聚集
+    pool = [c for c in candidates[:min(4, len(candidates))] if not c["too_close"]]
+    if not pool:
+        pool = candidates[:min(4, len(candidates))]
+    best = random.choice(pool)
     ap_id = _next_ap_id()
     best["id"] = ap_id
     best["radius"] = AP_COVERAGE_RADIUS
