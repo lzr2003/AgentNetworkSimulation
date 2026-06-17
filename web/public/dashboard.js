@@ -252,6 +252,16 @@ function formatTokenCount(value) {
   return String(n);
 }
 
+function formatTokenTimestamp(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '--:--:--';
+  return [
+    date.getHours().toString().padStart(2, '0'),
+    date.getMinutes().toString().padStart(2, '0'),
+    date.getSeconds().toString().padStart(2, '0'),
+  ].join(':');
+}
+
 function tokenRecordKey(record) {
   if (record.session_id && record.seq !== undefined && record.seq !== null) {
     return record.session_id + '|' + record.seq;
@@ -407,7 +417,7 @@ function renderTokenChart() {
   const padL = 36;
   const padR = 14;
   const padT = 12;
-  const padB = 22;
+  const padB = 30;
   const plotW = Math.max(1, w - padL - padR);
   const plotH = Math.max(1, h - padT - padB);
   const baseY = padT + plotH;
@@ -491,6 +501,22 @@ function renderTokenChart() {
   chartCtx.textAlign = 'left';
   chartCtx.fillText('0', 6, baseY);
   chartCtx.fillText(formatTokenCount(maxTotal), 6, padT + 4);
+
+  const labelCount = Math.max(2, Math.min(6, Math.floor(plotW / 130) + 1, _tokenSeries.length));
+  const labelIndexes = new Set();
+  for (let i = 0; i < labelCount; i++) {
+    const idx = labelCount === 1 ? 0 : Math.round(((_tokenSeries.length - 1) * i) / (labelCount - 1));
+    labelIndexes.add(idx);
+  }
+  chartCtx.fillStyle = 'rgba(127,155,181,0.78)';
+  chartCtx.textBaseline = 'top';
+  [...labelIndexes].sort((a, b) => a - b).forEach(idx => {
+    const x = xAt(idx);
+    chartCtx.textAlign = idx === 0 ? 'left' : idx === _tokenSeries.length - 1 ? 'right' : 'center';
+    chartCtx.fillText(formatTokenTimestamp(_tokenSeries[idx].ts), x, baseY + 8);
+  });
+  chartCtx.textBaseline = 'alphabetic';
+
   chartCtx.textAlign = 'right';
   chartCtx.fillStyle = 'rgba(191,234,255,0.82)';
   chartCtx.fillText('HIT', w - 48, 14);
