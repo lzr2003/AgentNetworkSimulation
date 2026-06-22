@@ -575,7 +575,7 @@ def _build_system_prompt(ctx: dict = None) -> str:
 
 
 def _call_openclaw(system_prompt: str, user_message: str) -> dict:
-    from agent_network.llm_traffic import LLMCallTracker
+    from agent_network.llm_metrics import LLMCallTracker
     from urllib.parse import urlparse
 
     if _is_deepseek_openclaw():
@@ -671,7 +671,7 @@ def _call_openclaw(system_prompt: str, user_message: str) -> dict:
 
 
 def _call_claude_code(prompt: str) -> str:
-    from agent_network.llm_traffic import log_llm_cli
+    from agent_network.llm_metrics import log_llm_cli
     import time as _time
     start = _time.time()
     env = os.environ.copy()

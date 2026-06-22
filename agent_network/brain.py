@@ -376,7 +376,7 @@ class Brain:
 
     def _call_anthropic(self, messages: List[Dict[str, str]], api_key: str, model: str = "") -> str:
         import anthropic
-        from agent_network.llm_traffic import LLMCallTracker
+        from agent_network.llm_metrics import LLMCallTracker
         from .config import DEFAULT_LLM_MODEL
 
         model = model or DEFAULT_LLM_MODEL
@@ -430,7 +430,7 @@ class Brain:
         api_base: str = "",
     ) -> str:
         import httpx
-        from agent_network.llm_traffic import LLMCallTracker
+        from agent_network.llm_metrics import LLMCallTracker
         from urllib.parse import urlparse
 
         model = model or "deepseek-chat"

@@ -4,7 +4,7 @@
 写入 agent_application 应用层日志，由 LOG_LLM_API=1 开关控制。
 
 用法:
-  from agent_network.llm_traffic import log_llm_call, log_llm_cli
+  from agent_network.llm_metrics import log_llm_call, log_llm_cli
 
   # HTTP / SDK 调用
   log_llm_call(provider="deepseek", model="deepseek-chat", method="POST",
