@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 
 from agent_network import state
@@ -619,6 +619,17 @@ async def scene_panel(scene_name: str):
     if panel_path.exists():
         return HTMLResponse(content=panel_path.read_text(encoding='utf-8'))
     raise HTTPException(status_code=404, detail="Panel not found")
+
+
+@router.get("/scenes/{scene_name}/{filename:path}")
+async def scene_asset(scene_name: str, filename: str):
+    """提供场景文件夹中的静态资源（图片、CSS等）"""
+    folder = _SCENES_DIR / scene_name
+    file_path = folder / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Asset '{filename}' not found")
+    return FileResponse(str(file_path))
+
 
 @router.get("/minesweeper/board")
 async def minesweeper_board():

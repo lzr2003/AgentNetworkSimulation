@@ -95,7 +95,7 @@ services:
     user: "1000:110"
     ports: ["8000:8000"]
     command: ["python", "server.py", "--host", "0.0.0.0"]
-    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "./data/logs:/app/data/logs", "./web/public:/app/web/dist", "./scenes:/app/scenes", "./server.py:/app/server.py", "./agent_server.py:/app/agent_server.py", "./agent_network:/app/agent_network"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "./data/logs:/app/data/logs", "./web/public:/app/web/public", "./scenes:/app/scenes", "./server.py:/app/server.py", "./agent_server.py:/app/agent_server.py", "./agent_network:/app/agent_network"]
     environment:
       TZ: Asia/Shanghai
       SERVER_PORT: "8000"
