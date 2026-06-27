@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Agent 容器运行时 — 统一 HTTP 服务 (OpenCLAW / Claude Code)
+Agent 容器运行时 — 统一 HTTP 服务 (OpenCLAW / Claude Code / Direct LLM)
 
 AgentNetwork 只负责容器化运行入口、消息收件箱和控制面上下文注入。
 单 Agent 内部 ReAct、记忆和 Tool 选择交给 Claude Code / OpenCLAW。
+Direct LLM 是显式降级后端，不能伪装成 OpenCLAW。
 """
 
 import os
@@ -25,6 +26,7 @@ from agent_network.comm import RemoteBus
 from agent_network.packet_capture import start_capture, stop_capture
 from agent_network.adapters.base import AgentContext
 from agent_network.adapters.claude_code import ClaudeCodeAdapter
+from agent_network.adapters.direct_llm import DirectLLMAdapter
 from agent_network.adapters.openclaw import OpenCLAWAdapter
 
 AGENT_ID = os.environ.get("AGENT_ID", "agent-001")
@@ -44,12 +46,14 @@ AGENT_PARADIGM_HINT = os.environ.get("AGENT_PARADIGM_HINT", "")
 BACKEND = os.environ.get("AGENT_BACKEND", "openclaw")
 if BACKEND == "claudecode":
     BACKEND = "claude-code"
+if BACKEND in {"direct-llm", "directllm"}:
+    BACKEND = "direct_llm"
 
-SUPPORTED_BACKENDS = {"openclaw", "claude-code"}
+SUPPORTED_BACKENDS = {"openclaw", "claude-code", "direct_llm"}
 if BACKEND not in SUPPORTED_BACKENDS:
     raise RuntimeError(
         f"Unsupported AGENT_BACKEND={BACKEND!r}. "
-        "The brain backend has been removed. Use 'openclaw' or 'claude-code'."
+        "Use 'openclaw', 'claude-code', or explicit 'direct_llm'."
     )
 
 API_KEY = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("LLM_API_KEY", "")
@@ -57,7 +61,11 @@ MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 
 comm = RemoteBus(message_bus_url=MESSAGE_BUS, server_url=SERVER_URL)
 logger = get_logger()
-backend_label = {"openclaw": "OpenCLAW", "claude-code": "Claude Code"}.get(BACKEND, BACKEND)
+backend_label = {
+    "openclaw": "OpenCLAW",
+    "claude-code": "Claude Code",
+    "direct_llm": "Direct LLM",
+}.get(BACKEND, BACKEND)
 app = FastAPI(title=f"Agent {AGENT_NAME} ({backend_label})")
 
 from agent_network.traffic_log import TrafficMiddleware, traffic_enabled
@@ -148,6 +156,14 @@ class RunRequest(BaseModel):
     scene_key: str = "default"
 
 
+def _make_adapter():
+    if BACKEND == "claude-code":
+        return ClaudeCodeAdapter()
+    if BACKEND == "direct_llm":
+        return DirectLLMAdapter()
+    return OpenCLAWAdapter()
+
+
 @app.post("/run")
 async def run_agent(req: RunRequest):
     """Run one backend-native Agent task.
@@ -175,7 +191,7 @@ async def run_agent(req: RunRequest):
         allowed_skills=allowed_skills,
     )
 
-    adapter = ClaudeCodeAdapter() if BACKEND == "claude-code" else OpenCLAWAdapter()
+    adapter = _make_adapter()
     result = await asyncio.to_thread(adapter.run_agent_task, context)
 
     for event in getattr(result, "application_events", []) or []:
